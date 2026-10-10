@@ -1,0 +1,14 @@
+services:
+  webui-dl:
+    image: ghcr.io/nathanapples/webui-dl:latest
+    container_name: webui-dl
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Denver
+    volumes:
+      - /apps/webui-dl:/config
+      - /path/to/downloads:/downloads
+    ports:
+      - 7341:7341
+    restart: unless-stopped

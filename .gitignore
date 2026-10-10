@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+config/
+downloads/
+.env
+
+# personal data, never commit
+webui-dl-profiles*.json
+profiles.json
+gallery-dl.conf
+cookies*.txt
