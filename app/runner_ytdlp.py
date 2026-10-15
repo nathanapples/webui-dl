@@ -56,14 +56,25 @@ def coerce(ov):
     return out
 
 
+EMBED_TAGS = {}   # profile's "file tag = template" lines, set from the spec
+SOURCE_URL = ""
+
+
 def effective(info, templates, overrides):
     vals = {k: render(t, info) for k, t in (templates or {}).items()}
     vals.update(overrides or {})
     out = coerce(vals)
+    ctx = {**info, **{k: v for k, v in out.items() if not k.startswith("meta_")},
+           "source_url": SOURCE_URL or info.get("webpage_url") or ""}
     # Tags also go into the "keywords" tag (yt-dlp itself only puts them into genre).
-    tags = out.get("tags", info.get("tags"))
+    tags = ctx.get("tags")
     if tags and "meta_keywords" not in info:
         out["meta_keywords"] = ", ".join(map(str, tags)) if isinstance(tags, (list, tuple)) else str(tags)
+    # The profile's file tags. A value that comes out empty leaves yt-dlp's own tag alone.
+    for tag, tmpl in EMBED_TAGS.items():
+        value = render(tmpl, ctx).strip()
+        if value and value not in ("None", "[]"):
+            out[f"meta_{tag}"] = value
     return out
 
 
@@ -187,7 +198,10 @@ def preview(spec, opts):
 
 
 def main():
+    global EMBED_TAGS, SOURCE_URL
     spec = json.load(sys.stdin)
+    EMBED_TAGS = spec.get("embed_tags") or {}
+    SOURCE_URL = spec.get("url") or ""
     opts = yt_dlp.parse_options([*spec.get("args", []), spec["url"]]).ydl_opts
     if spec["mode"] == "preview":
         try:

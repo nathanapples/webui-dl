@@ -1002,7 +1002,8 @@ def ytdlp_spec(ctx: dict, mode: str, run_id: str) -> tuple[dict, list[Path]]:
         temp.append(cp)
     spec = {"mode": mode, "url": ctx["url"], "args": args + ctx["extra"], "templates": ctx["templates"],
             "overrides": ctx["overrides"], "limit": ctx["settings"].get("preview_limit", 50),
-            "verbose": ctx.get("debug", False), "embed": ytdlp_embeds(ctx)}
+            "verbose": ctx.get("debug", False), "embed": ytdlp_embeds(ctx),
+            "embed_tags": gdl_tags(ctx) if ytdlp_embeds(ctx) else {}}
     return spec, temp
 
 
@@ -1118,6 +1119,7 @@ async def preview_ytdlp(ctx):
     res["log"] = log
     res["writes"] = writes_info(ctx, "yt-dlp")
     res["embeds"] = spec["embed"]
+    res["tag_templates"] = spec["embed_tags"]
     for obj in [res, *res.get("items", [])]:
         obj["filename"] = rel(obj.get("filename"))
     return res

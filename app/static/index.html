@@ -120,6 +120,23 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
   .mrow{grid-template-columns:1fr auto;gap:4px 8px}
   .mrow .v{grid-column:1/-1;grid-row:2}
 }
+.ttable{margin-top:8px}
+.trow{display:grid;grid-template-columns:minmax(130px,200px) 1fr 170px;gap:10px;align-items:start;padding:8px 0;border-bottom:1px solid var(--line)}
+.trow.th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);padding:4px 0}
+.trow .tf{display:flex;align-items:center;gap:6px;flex-wrap:wrap;word-break:break-all;font-size:13px}
+.trow .tv{word-break:break-word;font-size:15px}
+.trow .vt{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.trow.ov .tv{color:var(--accent)}
+.trow .tsel{padding:5px 8px;font-size:14px}
+.star{background:none;border:0;color:var(--muted);font-size:19px;line-height:1;cursor:pointer;padding:0 2px}
+.star.on{color:var(--accent)}
+.linkx{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12px;padding:0}
+.draftbar{margin-top:10px;padding:10px 12px;border:1px solid var(--accent);border-radius:8px;background:rgba(240,180,0,.08);display:flex;flex-direction:column;gap:8px}
+@media (max-width:640px){
+  .trow{grid-template-columns:1fr 150px;gap:4px 10px}
+  .trow .tv{grid-column:1/-1;grid-row:2}
+  .trow.th .tv{display:none}
+}
 .items{width:100%;border-collapse:collapse;font-size:14px}
 .items td{padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top;word-break:break-all}
 
@@ -374,12 +391,13 @@ async function api(path, opts={}){
   return data;
 }
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./,""); } catch { return ""; } };
+const siteOf = h => (!h || /^[\d.]+$/.test(h) || h.includes(":") || h.split(".").length <= 2) ? h : h.split(".").slice(-2).join(".");
 
 /* ---------- state ---------- */
 let profiles = [], cookies = [];
 let preview = null, previewErr = null, previewing = false, original = {}, overrides = {};
 let pvTimer = null, pvSeq = 0, activeJobs = 0;
-let openPanel = null;  // one of: opts, queue, log, meta, prof
+let openPanel = null, defaultProf = null;  // one of: opts, queue, log, meta, prof
 
 /* ---------- settings sheet ---------- */
 const BASE = location.pathname.replace(/settings\/?$/, "").replace(/[^/]*$/, "");
@@ -416,7 +434,7 @@ function openTab(t){
 /* ---------- main input ---------- */
 $("#url").addEventListener("input", () => { clearTimeout(pvTimer); renderHint(); if (openPanel === "meta") renderMeta(); pvTimer = setTimeout(() => { if (/^https?:\/\/\S+\.\S+/.test($("#url").value.trim())) doPreview(); }, 700); });
 $("#url").addEventListener("paste", () => setTimeout(() => { clearTimeout(pvTimer); renderHint(); doPreview(); }, 30));
-$("#profile").onchange = () => { renderHint(); renderMeta(); if ($("#url").value.trim()) doPreview(); };
+$("#profile").onchange = () => { draft = null; renderHint(); renderMeta(); if ($("#url").value.trim()) doPreview(); };
 $("#engine").onchange = () => { if ($("#url").value.trim()) doPreview(); };
 try { $("#debug").checked = localStorage.getItem("webui-dl.verbose") === "1"; } catch {}
 $("#debug").onchange = () => { try { localStorage.setItem("webui-dl.verbose", $("#debug").checked ? "1" : "0"); } catch {} if ($("#url").value.trim()) doPreview(); };
@@ -485,7 +503,7 @@ setInterval(() => loadAppLog(), 3000);
 
 async function doPreview(keep=false){
   const url = $("#url").value.trim(); if (!url) return;
-  if (!keep) { overrides = {}; metaItem = 0; metaEdit = false; }
+  if (!keep) { overrides = {}; metaItem = 0; metaEdit = false; draft = null; savingAs = false; }
   const seq = ++pvSeq; previewing = true; previewErr = null;
   renderSummary(); if (openPanel === "meta") renderMeta();
   try {
@@ -517,50 +535,49 @@ function asText(v){
   return String(v);
 }
 function pick(m, keys){ for (const k of keys) { const t = asText(m && m[k]); if (t) return t; } return ""; }
-function tagList(v){ if (Array.isArray(v)) return v.map(asText).filter(Boolean); if (typeof v === "string" && v) return v.split(",").map(s=>s.trim()).filter(Boolean); return []; }
-function summaryData(){
-  const r = preview, items = r.items || [], eff = {...original, ...overrides};
-  const first = items[0] ? {...items[0].meta, ...overrides} : {};
-  let title = pick(eff, ["title","fulltitle"]), titleNote = "";
-  if (!title && items.length > 1) { title = pick(first, ["title","fulltitle"]); if (title) titleNote = `1/${items.length}`; }
-  const ukeys = posterKeys(r);
-  const user = pick(eff, ukeys) || pick(first, ukeys);
-  let tags = tagList(eff.tags);
-  if (!tags.length && items.length) { const seen = new Set(); for (const it of items.slice(0,50)) for (const t of tagList(it.meta.tags)) seen.add(t); tags = [...seen]; }
-  return {title, titleNote, user, tags};
-}
 const pill = (label, val, cls="") => `<span class="pill ${cls}" title="${esc(label?label+": "+val:val)}">${label?`<b>${esc(label)}:</b>`:""}<span>${esc(val)}</span></span>`;
+const short = (t, max) => t.length > max ? t.slice(0, max) + "…" : t;
+
 function renderSummary(){
   const box = $("#summary");
   if (previewing) { box.hidden = false; box.innerHTML = `<span class="spin"></span> <span class="muted">Reading metadata…</span>`; return; }
   if (previewErr) {
     const e = previewErr, d = e.data && e.data.details ? Object.entries(e.data.details).map(([k,v]) => `<div class="mono">${esc(k)}: ${esc(v)}</div>`).join("") : "";
     box.hidden = false;
-    box.innerHTML = `<div class="err"><b>${esc(e.message)}</b>${d}</div><p class="help">Open <b>Log</b> above for details. If the site needs a login, add cookies in Settings and pick them in the profile. You can still press Submit to try anyway.</p>`;
+    box.innerHTML = `<div class="err"><b>${esc(e.message)}</b>${d}</div><p class="help">Open <b>Log</b> above for details. If the site needs a login, add cookies in Settings. You can still press Submit to try anyway.</p>`;
     return;
   }
   if (!preview) { box.hidden = true; return; }
-  const r = preview, n = r.count, nov = Object.keys(overrides).length, s = summaryData();
-  const short = (t, max) => t.length > max ? t.slice(0, max) + "…" : t;
-  const tagTxt = s.tags.slice(0,3).join(", ") + (s.tags.length > 3 ? ` +${s.tags.length-3}` : "");
+  const r = preview, n = r.count, nov = Object.keys(overrides).length, items = r.items || [];
+  const first = items[0] ? (items[0].raw || items[0].meta) : {};
+  const shared = {...original, ...overrides};
+  const ukeys = posterKeys(r), user = pick(shared, ukeys) || pick(first, ukeys);
+  const pkey = ukeys.find(k => asText(shared[k] ?? first[k]));
+  const favPills = effFields().filter(f => f !== pkey).map(f => {
+    let v = asText(shared[f]), note = "";
+    if (!v && items.length > 1) { v = asText(first[f]); if (v) note = ` (1/${items.length})`; }
+    return v ? pill(f + note, short(v, 32)) : "";
+  }).filter(Boolean).slice(0, 6).join("");
   box.hidden = false;
   box.innerHTML = `
     <div class="row">
       ${pill("", r.engine, "hi")}
       ${r.site ? pill("", r.site) : ""}
-      ${s.user ? pill("user", s.user) : ""}
+      ${user ? pill("user", user) : ""}
       ${pill("", `${n} item${n===1?"":"s"}${r.truncated?"+":""}`)}
-      ${s.title ? pill(s.titleNote ? `title (${s.titleNote})` : "title", short(s.title, 40)) : `<span class="pill" style="opacity:.6">no title</span>`}
-      ${s.tags.length ? pill("tags", tagTxt) : ""}
+      ${favPills}
       ${nov ? pill("", `${nov} edit${nov>1?"s":""}`, "hi") : ""}
+      ${draft && draft.dirty ? pill("", "profile changed", "hi") : ""}
     </div>
     ${(r.warnings||[]).length ? `<div class="err mono" style="margin-top:6px">${r.warnings.map(esc).join("<br>")}</div>` : ""}`;
 }
 
-/* metadata panel: profile, where it goes, what gets written, info fields */
+/* ---------- metadata panel ---------- */
 const PRIORITY = ["title","fulltitle","description","uploader","author","artist","creator","channel","username","user","album","track","genre","tags","date","upload_date","release_date","release_year","categories"];
 const DEFAULT_FIELDS = ["title","description","tags","date","upload_date"];
-let metaItem = 0, metaEdit = false, showAll = false;
+const TAG_OPTIONS = ["title","artist","album","album_artist","date","description","synopsis","comment","genre","keywords","composer","show","episode_id","network","copyright","grouping"];
+let metaItem = 0, metaEdit = false, showAll = false, draft = null, savingAs = false;
+
 function renderProfPanel(){
   const url = $("#url").value.trim(), host = hostOf(url), sel = $("#profile").value, {p, auto} = activeProfile();
   let info;
@@ -577,16 +594,130 @@ function renderProfPanel(){
 }
 function curItem(){ const items = (preview && preview.items) || []; return items[metaItem] || null; }
 function metaSource(){ const it = curItem(); return it ? it.meta : original; }
+function rowData(){
+  const it = curItem();
+  const base = it ? (it.raw || it.meta) : (preview.raw_common || original);
+  const out = {};
+  for (const [k, v] of Object.entries(base || {})) if (!k.startsWith("_")) out[k] = v;
+  return {...out, ...overrides};
+}
 function kvRows(obj){
   return `<div class="kv">${Object.entries(obj).map(([k,v]) => `<div class="k">${esc(k)}</div><div class="v">${esc(asText(v)) || '<span class="muted">(empty)</span>'}</div>`).join("")}</div>`;
 }
+
+/* the profile being looked at, and unsaved changes to it */
+function activeProfObj(){
+  const r = preview; if (!r || !r.profile) return null;
+  return r.profile.site ? profiles.find(p => p.id === r.profile.id) || null : defaultProf;
+}
+function ensureDraft(){
+  if (draft) return draft;
+  const p = activeProfObj(); if (!p) return null;
+  const copy = JSON.parse(JSON.stringify(p)); delete copy.builtin;
+  copy.embed_tags = copy.embed_tags || {}; copy.fields = copy.fields || [];
+  draft = {id: p.id, isDefault: p.id === "default", name: p.name, prof: copy, dirty: false};
+  return draft;
+}
+function effTags(){
+  if (!draft) return preview.tag_templates || {};
+  if (draft.isDefault) return {...draft.prof.embed_tags};
+  return {...((defaultProf && defaultProf.embed_tags) || {}), ...draft.prof.embed_tags};
+}
+function effFields(){
+  if (draft) {
+    if (draft.prof.fields.length) return draft.prof.fields;
+    return draft.isDefault ? [] : ((defaultProf && defaultProf.fields) || DEFAULT_FIELDS);
+  }
+  const f = preview && preview.profile && preview.profile.fields;
+  return f && f.length ? f : DEFAULT_FIELDS;
+}
+
+/* which site fields feed which file tags */
+function tplGroups(tpl){
+  const groups = [];
+  String(tpl || "").replace(/\{\{|\}\}/g, "").replace(/\{([^{}]+)\}/g, (_, e) => {
+    const body = splitTop(e, ":")[0];
+    groups.push(splitTop(body, "|").map(a => { const m = /^\s*([A-Za-z_]\w*)/.exec(a); return m ? m[1] : null; }).filter(Boolean));
+    return "";
+  });
+  return groups;
+}
+function fieldTagMap(tags, data){
+  const map = {};
+  for (const [tag, tpl] of Object.entries(tags)) {
+    if (!tpl) continue;
+    for (const alts of tplGroups(tpl)) {
+      let found = false;
+      for (const f of alts) {
+        const m = map[f] || (map[f] = {active: [], backup: []});
+        if (!found && asText(data[f]) !== "") { m.active.push(tag); found = true; } else m.backup.push(tag);
+      }
+    }
+  }
+  return map;
+}
+function dropFieldFromTpl(tpl, f){
+  return String(tpl).replace(/\{([^{}]+)\}/g, (all, e) => {
+    const parts = splitTop(e, ":"), fmt = parts.length > 1 ? ":" + parts.slice(1).join(":") : "";
+    const alts = splitTop(parts[0], "|").filter(a => { const m = /^\s*([A-Za-z_]\w*)/.exec(a); return !m || m[1] !== f; });
+    return alts.length ? `{${alts.join("|")}${fmt}}` : "";
+  }).trim();
+}
+function setFileTag(f, newTag){
+  const d = ensureDraft(); if (!d) return;
+  const tags = effTags(), map = fieldTagMap(tags, rowData());
+  for (const t of ((map[f] || {}).active || [])) {
+    if (t === newTag) continue;
+    const left = dropFieldFromTpl(tags[t], f);
+    if (!left || !/\{/.test(left)) { if (d.isDefault) delete d.prof.embed_tags[t]; else d.prof.embed_tags[t] = ""; }
+    else d.prof.embed_tags[t] = left;
+  }
+  if (newTag) d.prof.embed_tags[newTag] = (f === "date" && preview.engine === "gallery-dl") ? "{date:%Y-%m-%d}" : `{${f}}`;
+  d.dirty = true; renderMeta(); renderSummary();
+}
+function toggleFav(f){
+  const d = ensureDraft(); if (!d) return;
+  const favs = effFields().slice();
+  d.prof.fields = favs.includes(f) ? favs.filter(x => x !== f) : [...favs, f];
+  d.dirty = true; renderMeta(); renderSummary();
+}
+function diffTags(base, now){
+  const out = {};
+  for (const [k, v] of Object.entries(now)) if (v !== base[k]) out[k] = v;
+  for (const k of Object.keys(base)) if (!(k in now)) out[k] = "";
+  return out;
+}
+async function saveDraft(asNew){
+  const d = draft; if (!d) return;
+  try {
+    if (asNew) {
+      const name = ($("#newProfName").value || "").trim(); if (!name) return toastErr("Give the new profile a name");
+      const site = siteOf(hostOf($("#url").value.trim()));
+      const body = d.isDefault
+        ? {...EMPTY_PROFILE, name, match: site ? [site] : [], embed_tags: diffTags(defaultProf.embed_tags || {}, d.prof.embed_tags), fields: d.prof.fields, user_field: d.prof.user_field || ""}
+        : {...d.prof, name, match: site ? [site] : []};
+      delete body.id;
+      const p = await api("api/profiles/new", {method: "PUT", body});
+      notify("ok", "Profile saved", `Created <b>${esc(p.name)}</b> for ${esc(site)}.`);
+      $("#profile").value = "auto";
+    } else {
+      await api(`api/profiles/${d.isDefault ? "default" : encodeURIComponent(d.id)}`, {method: "PUT", body: d.prof});
+      notify("ok", "Profile saved", `Updated <b>${esc(d.name)}</b>.`);
+    }
+    draft = null; savingAs = false;
+    defaultProf = await api("api/profiles/default"); await refreshProfiles();
+    doPreview(true);
+  } catch (e) { toastErr(e.message); }
+}
+
 function renderMeta(){
   renderProfPanel();
   const body = $("#metabody");
   if (previewing) { body.innerHTML = `<p class="muted"><span class="spin"></span> Reading metadata…</p>`; return; }
   if (!preview) { body.innerHTML = previewErr ? `<p class="err">${esc(previewErr.message)}</p>` : ""; return; }
   const r = preview, items = r.items || [], it = curItem(), n = items.length;
-  const prof = r.profile || null;
+  const pname = r.profile ? r.profile.name : "Default";
+  const data = rowData();
 
   // where it goes
   const path = (it && it.filename) || r.filename || "";
@@ -597,66 +728,108 @@ function renderMeta(){
     ${n > 1 ? `<p class="help">${n} files${dirs.size > 1 ? ` in ${dirs.size} folders` : " in this folder"}.</p>` : ""}`
     : `<p class="help">The file name is decided while downloading (the site lists ${n || "several"} item${n===1?"":"s"}).</p>`;
 
-  // what gets written into the file
+  // poster
+  const pk = posterKeys(r), pkey = pk.find(k => asText(data[k])), poster = pkey ? asText(data[pkey]) : "";
+
+  // table rows: favourites first, then fields that feed a file tag, then (all fields) everything else
+  const tags = effTags(), map = fieldTagMap(tags, data), favs = effFields();
+  const feeding = Object.keys(map).filter(f => map[f].active.length && f in data);
+  let keys = [...favs.filter(f => f in data || f in overrides), ...feeding];
+  if (showAll) {
+    const rest = Object.keys(data).sort((a,b) => { const ia=PRIORITY.indexOf(a), ib=PRIORITY.indexOf(b); return (ia<0?999:ia)-(ib<0?999:ib) || a.localeCompare(b); });
+    keys = [...keys, ...rest];
+  }
+  keys = [...new Set(keys)];
+  if (!metaEdit && !showAll) keys = keys.filter(k => asText(data[k]) !== "" || favs.includes(k));
+  const media = !(it && it.media === false);
+  const rows = keys.map(k => {
+    const isOv = k in overrides, v = data[k], sv = fmtVal(v), fav = favs.includes(k), m = map[k] || {active: [], backup: []};
+    const cur = m.active[0] || "";
+    const opts = `<option value="">—</option>` + [...new Set([...TAG_OPTIONS, ...Object.keys(tags)])].map(t => `<option ${t === cur ? "selected" : ""}>${esc(t)}</option>`).join("");
+    const extra = m.active.length > 1 ? `<div class="help">also ${esc(m.active.slice(1).join(", "))}</div>` : (!cur && m.backup.length ? `<div class="help">backup for ${esc(m.backup.join(", "))}</div>` : "");
+    const val = metaEdit
+      ? (sv.length > 80 || sv.includes("\n") ? `<textarea class="f" data-k="${esc(k)}" rows="3">${esc(sv)}</textarea>` : `<input class="f" data-k="${esc(k)}" value="${esc(sv)}">`)
+      : `<span class="vt">${esc(asText(v)) || '<span class="muted">(empty)</span>'}</span>`;
+    return `<div class="trow ${isOv ? "ov" : ""}">
+      <div class="tf"><button type="button" class="star ${fav ? "on" : ""}" data-fav="${esc(k)}" title="${fav ? "Remove from favorites" : "Favorite: always show this field and its bubble"}">${fav ? "★" : "☆"}</button><span class="mono">${esc(k)}</span>${isOv ? ' <span class="pill hi">edited</span>' : ""}${isOv ? ` <button class="linkx" data-reset="${esc(k)}">reset</button>` : ""}</div>
+      <div class="tv">${val}</div>
+      <div class="tt"><select class="f tsel" data-tag="${esc(k)}" aria-label="File tag for ${esc(k)}">${opts}</select>${extra}</div>
+    </div>`;
+  }).join("");
+
+  // final file tags
   let written;
-  if (r.engine === "gallery-dl") {
-    const tpl = r.tag_templates || {};
-    if (!Object.keys(tpl).length) written = `<p class="help">Nothing: no tags are set in the Default or site profile.</p>`;
-    else if (it && it.media === false) written = `<p class="help">Nothing for this item: it's an image (${esc(it.meta.extension || "")}). Tags are only written into video and audio files.</p>`;
-    else if (it && it.tags && !Object.keys(it.tags).length) written = `<p class="help">Nothing: none of the tag fields have a value for this item.</p>`;
-    else written = kvRows((it && it.tags) || tpl);
-  } else {
-    const tags = (it && it.tags) || r.tags;
-    if (!r.embeds) written = `<p class="help">Nothing: --embed-metadata is not in your yt-dlp arguments.</p>`;
-    else if (!tags) written = `<p class="help">yt-dlp writes its standard tags (title, artist, date, description, link…); exact values are known once each video is fetched.</p>`;
-    else written = kvRows(tags);
+  const dirty = draft && draft.dirty;
+  if (r.engine === "gallery-dl" && !media) written = `<p class="help">Nothing for this item: it's an image (${esc((it.meta||{}).extension || "")}). Tags are only written into video and audio files.</p>`;
+  else if (r.engine === "yt-dlp" && !r.embeds) written = `<p class="help">Nothing: --embed-metadata is not in your yt-dlp arguments.</p>`;
+  else {
+    let vals;
+    if (dirty) {
+      vals = {};
+      const sample = {...data, source_url: $("#url").value.trim()};
+      for (const [t, tpl] of Object.entries(tags)) { if (!tpl) continue; const o = renderTpl(tpl, sample, r.engine); if (o.text.trim()) vals[t] = o.text; }
+    } else vals = (it && it.tags) || r.tags || null;
+    written = vals && Object.keys(vals).length ? kvRows(vals) + (dirty ? `<p class="help">After you save. Save the profile to see the exact result.</p>` : "")
+      : (vals ? `<p class="help">Nothing: none of the file tags have a value for this item.</p>` : `<p class="help">yt-dlp writes its standard tags (title, artist, date, description, link…); exact values are known once each video is fetched.</p>`);
+    if (r.engine === "yt-dlp") written += `<p class="help">yt-dlp also writes its own standard tags; the ones above replace them.</p>`;
   }
   const also = (r.writes || []).length ? `<ul class="plain">${r.writes.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : `<p class="help">No extra files (no .json or .txt next to the download).</p>`;
-
-  // info fields
-  const src = it ? it.meta : original, eff = {...src, ...overrides};
-  const want = (prof && prof.fields && prof.fields.length) ? prof.fields : DEFAULT_FIELDS;
-  const pk = posterKeys(r), pkey = pk.find(k => asText(eff[k])), poster = pkey ? asText(eff[pkey]) : "";
-  let keys = showAll ? Object.keys(eff).filter(k => !k.startsWith("_")) : want.filter(k => k in eff || k in overrides);
-  if (!metaEdit) keys = keys.filter(k => fmtVal(eff[k]) !== "");
-  if (showAll) keys.sort((a,b) => { const ia=PRIORITY.indexOf(a), ib=PRIORITY.indexOf(b); return (ia<0?999:ia)-(ib<0?999:ib) || a.localeCompare(b); });
-  const pf = new Set(r.profile_fields || []);
-  const rows = keys.map(k => {
-    const isOv = k in overrides, v = eff[k], sv = fmtVal(v);
-    const label = `${esc(k)}${pf.has(k)&&!isOv?' <span class="pill">profile</span>':""}${isOv?' <span class="pill hi">edited</span>':""}`;
-    if (!metaEdit) return `<div class="mrow ro ${isOv?"ov":""}"><div class="k">${label}</div><div class="v">${esc(asText(v))}</div><div></div></div>`;
-    const inp = sv.length > 80 || sv.includes("\n") ? `<textarea class="f" data-k="${esc(k)}" rows="3">${esc(sv)}</textarea>` : `<input class="f" data-k="${esc(k)}" value="${esc(sv)}">`;
-    return `<div class="mrow ${isOv?"ov":""}"><div class="k">${label}</div><div class="v">${inp}</div><div>${isOv?`<button class="btn sm" data-reset="${esc(k)}">Reset</button>`:""}</div></div>`;
-  }).join("");
   const raw = it ? it.raw : r.raw_common;
+  const host = hostOf($("#url").value.trim());
+  const suggested = (host.split(".").slice(-2, -1)[0] || "New").replace(/^./, c => c.toUpperCase());
 
   body.innerHTML = `
     ${n > 1 ? `<select class="f" id="metaItem" style="margin-top:12px">${items.map((x,i) => `<option value="${i}" ${i===metaItem?"selected":""}>Item ${i+1} of ${n}: ${esc((x.title||"").slice(0,70))}</option>`).join("")}</select>` : ""}
     <div class="sect"><label class="l">Posted by</label>${poster ? `<div style="font-size:17px">${esc(poster)} <span class="help">(${esc(pkey)})</span></div>` : `<p class="help">Not in this link's metadata. Set <b>User field</b> in a profile if the site uses a different name.</p>`}</div>
     <div class="sect"><label class="l">Saved to</label>${where}</div>
-    <div class="sect"><label class="l">Written into the file</label>${written}</div>
-    <div class="sect"><label class="l">Also written</label>${also}</div>
     <div class="sect">
-      <div class="row between"><label class="l" style="margin:0">Info (${esc(prof ? prof.name : "Default")} profile)</label>
+      <div class="row between"><label class="l" style="margin:0">Fields (${esc(pname)} profile)</label>
         <div class="row"><label class="muted" style="font-size:13px;cursor:pointer"><input type="checkbox" id="showAll" ${showAll?"checked":""}> all fields</label>
-        <button class="btn sm" id="btnEditMeta">${metaEdit ? "Done" : "Edit"}</button></div></div>
-      ${metaEdit && n > 1 ? `<p class="help">Edits apply to all ${n} items.</p>` : ""}
-      <div class="meta">${rows || `<p class="muted">None of the info fields are in this link. Turn on "all fields" or set Info fields in the profile.</p>`}</div>
+        <button class="btn sm" id="btnEditMeta">${metaEdit ? "Done" : "Edit values"}</button></div></div>
+      ${dirty ? `<div class="draftbar">
+          <div>You changed the <b>${esc(draft.name)}</b> profile.</div>
+          <div class="row">
+            <button class="btn solid sm" id="btnSaveSame">Save to ${esc(draft.name)}</button>
+            <button class="btn sm" id="btnSaveNew">Save as new…</button>
+            <button class="btn sm" id="btnDiscard">Discard</button>
+          </div>
+          <div class="row" id="saveNewRow" ${savingAs ? "" : "hidden"} style="margin-top:8px">
+            <input class="f" id="newProfName" value="${esc(suggested)}" style="flex:1 1 180px;width:auto" aria-label="New profile name">
+            <button class="btn solid sm" id="btnSaveNewGo">Create for ${esc(siteOf(host) || "this site")}</button>
+          </div>
+        </div>` : ""}
+      ${metaEdit && n > 1 ? `<p class="help">Value edits apply to all ${n} items.</p>` : ""}
+      <div class="ttable">
+        <div class="trow th"><div class="tf">Field</div><div class="tv">Value</div><div class="tt">File tag</div></div>
+        ${rows || `<p class="muted" style="padding:8px 0">No favorite fields in this link. Turn on "all fields" and tap ☆ to add some.</p>`}
+      </div>
+      <p class="help">☆ favorites a field: it always shows here and as a bubble. File tag picks which tag the value is written into.</p>
       ${metaEdit ? `<div class="row" style="margin-top:12px">
         <input class="f mono" id="nk" placeholder="new field" style="flex:1 1 140px;width:auto">
         <input class="f" id="nv" placeholder="value" style="flex:2 1 180px;width:auto">
         <button class="btn" id="btnAdd">Add</button>
         <button class="btn" id="btnRefresh">Refresh preview</button></div>` : ""}
     </div>
+    <div class="sect"><label class="l">Written into the file</label>${written}</div>
+    <div class="sect"><label class="l">Also written</label>${also}</div>
     <details><summary>Raw metadata (everything the site returned${n > 1 ? ` for item ${metaItem+1}` : ""})</summary>
       <pre>${raw ? esc(JSON.stringify(raw, null, 2)) : "Raw data is kept for the first 20 items only."}</pre></details>`;
+
   if ($("#metaItem")) $("#metaItem").onchange = e => { metaItem = +e.target.value; renderMeta(); };
   $("#btnEditMeta").onclick = () => { metaEdit = !metaEdit; renderMeta(); };
   $("#showAll").onchange = e => { showAll = e.target.checked; renderMeta(); };
+  body.querySelectorAll("[data-fav]").forEach(b => b.onclick = () => toggleFav(b.dataset.fav));
+  body.querySelectorAll("[data-tag]").forEach(el => el.onchange = () => setFileTag(el.dataset.tag, el.value));
   body.querySelectorAll("[data-k]").forEach(el => el.addEventListener("change", () => setField(el.dataset.k, el.value)));
   body.querySelectorAll("[data-reset]").forEach(b => b.onclick = () => { delete overrides[b.dataset.reset]; renderMeta(); renderSummary(); });
   if ($("#btnAdd")) $("#btnAdd").onclick = () => { const k=$("#nk").value.trim(); if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) return toast("Field names: letters, numbers, underscore"); setField(k,$("#nv").value,true); };
   if ($("#btnRefresh")) $("#btnRefresh").onclick = () => doPreview(true);
+  if ($("#btnSaveSame")) {
+    $("#btnSaveSame").onclick = () => saveDraft(false);
+    $("#btnSaveNew").onclick = () => { savingAs = !savingAs; $("#saveNewRow").hidden = !savingAs; if (savingAs) $("#newProfName").select(); };
+    $("#btnSaveNewGo").onclick = () => saveDraft(true);
+    $("#btnDiscard").onclick = () => { draft = null; savingAs = false; renderMeta(); renderSummary(); };
+  }
 }
 function parseLike(orig, s){
   if (typeof orig === "number" && s.trim()!=="" && !isNaN(+s)) return +s;
@@ -666,7 +839,7 @@ function parseLike(orig, s){
   return s;
 }
 function setField(k, s, force=false){
-  const src = metaSource();
+  const src = curItem() ? (curItem().raw || curItem().meta) : original;
   const v = parseLike(src[k], s);
   if (!force && JSON.stringify(v)===JSON.stringify(src[k])) delete overrides[k]; else overrides[k] = v;
   renderMeta(); renderSummary();
@@ -801,7 +974,6 @@ async function refreshProfiles(){
   sel.value = [...sel.options].some(o=>o.value===cur) ? cur : "auto";
   renderHint(); if (openPanel === "meta") renderProfPanel();
 }
-let defaultProf = null;
 async function loadProfiles(){
   await refreshProfiles();
   try { defaultProf = await api("api/profiles/default"); } catch {}
@@ -863,7 +1035,7 @@ $("#btnPReset").onclick = async () => {
 };
 function closeEditor(){ $("#pedit").hidden = true; $("#plist-wrap").hidden = false; $("#pexample").hidden = true; $("#p_name").disabled = $("#p_match").disabled = false; editing = null; }
 function newProfileForUrl(){
-  const h = hostOf($("#url").value.trim()), base = h.split(".").slice(-2).join(".");
+  const h = hostOf($("#url").value.trim()), base = siteOf(h);
   openSettings(); openTab("t-profiles");
   editProfile(null, {name: (h.split(".").slice(-2,-1)[0]||"").replace(/^./,c=>c.toUpperCase()), match: base ? [base] : []});
 }
@@ -996,7 +1168,7 @@ async function loadFooter(){
 }
 
 /* ---------- init ---------- */
-route(); renderHint(); refreshProfiles(); refreshCookies(); loadJobs(); loadFooter(); loadAppLog(true); setInterval(loadFooter, 60000);
+route(); renderHint(); refreshProfiles(); api("api/profiles/default").then(d => defaultProf = d).catch(() => {}); refreshCookies(); loadJobs(); loadFooter(); loadAppLog(true); setInterval(loadFooter, 60000);
 const qp = new URLSearchParams(location.search).get("url");
 if (qp) { $("#url").value = qp; refreshProfiles().then(() => { renderHint(); doPreview(); }); }
 </script>
