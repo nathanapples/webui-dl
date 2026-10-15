@@ -25,6 +25,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
+
+from . import nfo as nfo_mod
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 
@@ -75,6 +77,7 @@ DEFAULT_SETTINGS = {
     "gdl_args": "",
     "preview_limit": 50,
     "embed_overrides": True,
+    "nfo_artist_as": "performer",  # what the artist tag becomes in a .nfo: performer / studio / none
 }
 
 # Tags ffmpeg can write that people commonly override.
@@ -444,6 +447,8 @@ async def put_settings(body: dict):
             s[k] = body[k]
     s["preview_limit"] = max(1, min(int(s.get("preview_limit") or 50), 500))
     s["embed_overrides"] = bool(s.get("embed_overrides"))
+    if s.get("nfo_artist_as") not in ("performer", "studio", "none"):
+        s["nfo_artist_as"] = "performer"
     SETTINGS_FILE.write_text(json.dumps(s, indent=2))
     return s
 
@@ -722,6 +727,87 @@ async def import_profiles(req: ImportReq):
     return {"profiles": len(incoming) + (1 if new_default else 0), "gallery_dl_config": isinstance(gdl, dict)}
 
 
+# --------------------------------------------------------------------------- tools: .nfo from existing files
+NFO_STATE = {"running": False}
+
+
+class NfoReq(BaseModel):
+    folder: str = ""
+    overwrite: bool = False
+    dry_run: bool = True
+    artist_as: str = "performer"
+
+
+def downloads_subfolder(text: str) -> Path:
+    rel = (text or "").strip()
+    root = DOWNLOADS.resolve()
+    for prefix in (str(DOWNLOADS), str(root), "/downloads"):
+        if rel == prefix or rel.startswith(prefix + "/"):
+            rel = rel[len(prefix):]
+            break
+    p = (root / rel.lstrip("/")).resolve()
+    if p != root and root not in p.parents:
+        raise HTTPException(400, "The folder must be inside the downloads folder")
+    if not p.is_dir():
+        raise HTTPException(404, f"Folder not found: downloads/{rel.lstrip('/')}")
+    return p
+
+
+def nfo_worker(folder: Path, req: NfoReq):
+    st = NFO_STATE
+    videos = list(nfo_mod.find_videos(str(folder)))
+    st["total"] = len(videos)
+    for v in videos:
+        r = nfo_mod.write_for(v, req.artist_as, req.overwrite, req.dry_run)
+        st["done"] += 1
+        st[r["status"]] = st.get(r["status"], 0) + 1
+        relv = rel(v) or v
+        if r["status"] == "written" and len(st["samples"]) < 5:
+            st["samples"].append({"video": relv, "xml": r["xml"]})
+        if r["status"] == "error" and len(st["errors"]) < 50:
+            st["errors"].append(f"{relv}: {r['error']}")
+        st["current"] = relv
+
+
+async def run_nfo(folder: Path, req: NfoReq):
+    what = "Dry run" if req.dry_run else "Creating .nfo files"
+    applog(f"{what} for videos in {folder}")
+    try:
+        await asyncio.to_thread(nfo_worker, folder, req)
+        s = NFO_STATE
+        applog(f"{what} finished: {s['done']} videos checked, {s.get('written', 0)} "
+               f"{'would be written' if req.dry_run else 'written'}, {s.get('exists', 0)} already had one, "
+               f"{s.get('empty', 0)} had no tags, {s.get('error', 0)} errors")
+        for e in s["errors"][:20]:
+            applog(e, "error")
+    except Exception as e:
+        NFO_STATE["errors"].append(str(e))
+        applog(f".nfo tool failed: {e}", "error")
+    finally:
+        NFO_STATE["running"] = False
+        NFO_STATE["finished"] = time.time()
+
+
+@app.get("/api/tools/nfo")
+async def nfo_status():
+    return NFO_STATE
+
+
+@app.post("/api/tools/nfo")
+async def nfo_start(req: NfoReq):
+    if NFO_STATE.get("running"):
+        raise HTTPException(409, "Already running")
+    if req.artist_as not in ("performer", "studio", "none"):
+        raise HTTPException(400, "artist_as must be performer, studio or none")
+    folder = downloads_subfolder(req.folder)
+    NFO_STATE.clear()
+    NFO_STATE.update(running=True, dry_run=req.dry_run, overwrite=req.overwrite, folder=rel(str(folder)) or "downloads",
+                     total=0, done=0, written=0, exists=0, empty=0, error=0, samples=[], errors=[],
+                     current="", started=time.time(), finished=None)
+    asyncio.create_task(run_nfo(folder, req))
+    return NFO_STATE
+
+
 # --------------------------------------------------------------------------- cookies
 NETSCAPE_HEADER = "# Netscape HTTP Cookie File"
 
@@ -831,6 +917,7 @@ class DLReq(BaseModel):
     overrides: dict = {}
     extra_args: str = ""
     debug: bool = False         # verbose engine log in previews
+    nfo: bool = True            # write a .nfo next to each downloaded video
 
 
 def resolve(req: DLReq) -> dict:
@@ -868,6 +955,7 @@ def resolve(req: DLReq) -> dict:
         "gdl_args": split_args(settings["gdl_args"]),
         "extra": split_args(req.extra_args),
         "debug": bool(getattr(req, "debug", False)),
+        "nfo": bool(getattr(req, "nfo", True)),
         "settings": settings,
         "warnings": [],
     }
@@ -899,9 +987,10 @@ def gdl_argv(ctx: dict, mode: str, run_id: str) -> tuple[list[str], list[Path], 
     frag = copy.deepcopy(ctx["gdl_fragment"])
     keywords = {**ctx["templates"], **{k: esc_fmt(v) for k, v in ctx["overrides"].items()}}
     tags = gdl_tags(ctx)
+    write_nfo = ctx.get("nfo") and mode == "download"
     if ctx.get("debug"):
         argv.append("-v")
-    if tags and mode == "download":
+    if (tags or write_nfo) and mode == "download":
         # Attach at the "extractor" level: command-line flags such as --write-metadata replace
         # root-level postprocessors. Keep any extractor-level ones from the user's own config,
         # since a later config file would otherwise replace that list.
@@ -913,9 +1002,10 @@ def gdl_argv(ctx: dict, mode: str, run_id: str) -> tuple[list[str], list[Path], 
             except Exception:
                 existing = []
         ext["postprocessors"] = existing + [tagger_postprocessor()]
-    if tags:
+    if tags or write_nfo:
         env = {"WEBUI_EMBED_TAGS": json.dumps(tags), "WEBUI_MEDIA_EXT": json.dumps(MEDIA_EXT),
-               "WEBUI_SOURCE_URL": ctx["url"]}
+               "WEBUI_SOURCE_URL": ctx["url"],
+               "WEBUI_WRITE_NFO": ctx["settings"].get("nfo_artist_as", "performer") if write_nfo else ""}
     if frag:
         p = RUN_DIR / f"{run_id}.json"
         write_private(p, json.dumps(frag))
@@ -1003,7 +1093,9 @@ def ytdlp_spec(ctx: dict, mode: str, run_id: str) -> tuple[dict, list[Path]]:
     spec = {"mode": mode, "url": ctx["url"], "args": args + ctx["extra"], "templates": ctx["templates"],
             "overrides": ctx["overrides"], "limit": ctx["settings"].get("preview_limit", 50),
             "verbose": ctx.get("debug", False), "embed": ytdlp_embeds(ctx),
-            "embed_tags": gdl_tags(ctx) if ytdlp_embeds(ctx) else {}}
+            "embed_tags": gdl_tags(ctx) if ytdlp_embeds(ctx) else {},
+            "write_nfo": (ctx["settings"].get("nfo_artist_as", "performer")
+                          if mode == "download" and ctx.get("nfo") else "")}
     return spec, temp
 
 
@@ -1164,7 +1256,7 @@ async def preview(req: DLReq):
 JOBS: dict[str, dict] = {}
 PROCS: dict[str, asyncio.subprocess.Process] = {}
 SEM = asyncio.Semaphore(MAX_CONCURRENT)
-REQ_KEYS = ("url", "engine", "cookie", "profile", "overrides", "extra_args", "debug")
+REQ_KEYS = ("url", "engine", "cookie", "profile", "overrides", "extra_args", "debug", "nfo")
 
 
 def save_jobs():

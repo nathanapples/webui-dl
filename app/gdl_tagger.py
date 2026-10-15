@@ -23,6 +23,7 @@ from gallery_dl import formatter
 EMBED_TAGS = json.loads(os.environ.get("WEBUI_EMBED_TAGS") or "{}")
 MEDIA_EXT = tuple(json.loads(os.environ.get("WEBUI_MEDIA_EXT") or "[]"))
 SOURCE_URL = os.environ.get("WEBUI_SOURCE_URL", "")
+WRITE_NFO = os.environ.get("WEBUI_WRITE_NFO", "")   # "", "performer", "studio" or "none"
 _SIMPLE = (str, int, float, bool)
 _fmts = {}
 
@@ -86,9 +87,27 @@ def tag(kwdict):
     ext = path.rsplit(".", 1)[-1].lower()
     if MEDIA_EXT and ext not in MEDIA_EXT:
         return
-    values = render(kwdict)
-    if not values:
-        return
+    values = render(kwdict) if EMBED_TAGS else {}
+    if values:
+        _write_tags(path, ext, values)
+    if WRITE_NFO:
+        _write_nfo(path)
+
+
+def _write_nfo(path):
+    try:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        import nfo
+        if path.rsplit(".", 1)[-1].lower() not in nfo.VIDEO_EXT:
+            return
+        r = nfo.write_for(path, WRITE_NFO, overwrite=True)
+        if r["status"] == "written":
+            _log("info", f"Wrote {os.path.basename(r['nfo'])}")
+    except Exception as e:
+        _log("warning", f"Could not write .nfo for {os.path.basename(path)}: {e}")
+
+
+def _write_tags(path, ext, values):
     tmp = f"{path}.webui-tags.{ext}"
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", path, "-map", "0", "-codec", "copy"]
     for k, v in values.items():

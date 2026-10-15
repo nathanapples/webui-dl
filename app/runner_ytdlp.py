@@ -130,6 +130,25 @@ def embedded_tags(ydl, info):
         return {"(error)": str(e)}
 
 
+class NfoPP(PostProcessor):
+    """Writes a .nfo next to the finished video from the tags now inside it."""
+    def __init__(self, artist_as):
+        super().__init__(None)
+        self.artist_as = artist_as
+
+    def run(self, info):
+        path = info.get("filepath")
+        try:
+            import nfo
+            if path and path.rsplit(".", 1)[-1].lower() in nfo.VIDEO_EXT:
+                r = nfo.write_for(path, self.artist_as, overwrite=True)
+                if r["status"] == "written":
+                    self.to_screen(f"Wrote {r['nfo']}")
+        except Exception as e:
+            self.report_warning(f"Could not write .nfo: {e}")
+        return [], info
+
+
 class OverridePP(PostProcessor):
     def __init__(self, templates, overrides):
         super().__init__(None)
@@ -213,6 +232,8 @@ def main():
         return 0
     with yt_dlp.YoutubeDL(opts) as ydl:
         ydl.add_post_processor(OverridePP(spec.get("templates"), spec.get("overrides")), when="pre_process")
+        if spec.get("write_nfo"):
+            ydl.add_post_processor(NfoPP(spec["write_nfo"]), when="after_move")
         return ydl.download([spec["url"]])
 
 

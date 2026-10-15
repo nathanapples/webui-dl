@@ -522,7 +522,7 @@ async function doPreview(keep=false){
 }
 function reqBody(){
   return {url:$("#url").value.trim(), engine:$("#engine").value, profile:$("#profile").value,
-          overrides, extra_args:$("#extra").value, debug:$("#debug").checked};
+          overrides, extra_args:$("#extra").value, debug:$("#debug").checked, nfo: wantNfo};
 }
 
 /* summary bubbles */
@@ -576,7 +576,7 @@ function renderSummary(){
 const PRIORITY = ["title","fulltitle","description","uploader","author","artist","creator","channel","username","user","album","track","genre","tags","date","upload_date","release_date","release_year","categories"];
 const DEFAULT_FIELDS = ["title","description","tags","date","upload_date"];
 const TAG_OPTIONS = ["title","artist","album","album_artist","date","description","synopsis","comment","genre","keywords","composer","show","episode_id","network","copyright","grouping"];
-let metaItem = 0, metaEdit = false, showAll = false, draft = null, savingAs = false;
+let metaItem = 0, metaEdit = false, showAll = false, draft = null, savingAs = false, wantNfo = true;
 
 function renderProfPanel(){
   const url = $("#url").value.trim(), host = hostOf(url), sel = $("#profile").value, {p, auto} = activeProfile();
@@ -773,7 +773,8 @@ function renderMeta(){
       : (vals ? `<p class="help">Nothing: none of the file tags have a value for this item.</p>` : `<p class="help">yt-dlp writes its standard tags (title, artist, date, description, link…); exact values are known once each video is fetched.</p>`);
     if (r.engine === "yt-dlp") written += `<p class="help">yt-dlp also writes its own standard tags; the ones above replace them.</p>`;
   }
-  const also = (r.writes || []).length ? `<ul class="plain">${r.writes.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : `<p class="help">No extra files (no .json or .txt next to the download).</p>`;
+  const writes = [...(wantNfo ? ["a .nfo next to each video (title, details, date, performer, tags, link) for Stash, Jellyfin and Kodi"] : []), ...(r.writes || [])];
+  const also = writes.length ? `<ul class="plain">${writes.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : `<p class="help">No extra files (no .nfo, .json or .txt next to the download).</p>`;
   const raw = it ? it.raw : r.raw_common;
   const host = hostOf($("#url").value.trim());
   const suggested = (host.split(".").slice(-2, -1)[0] || "New").replace(/^./, c => c.toUpperCase());
@@ -781,7 +782,8 @@ function renderMeta(){
   body.innerHTML = `
     ${n > 1 ? `<select class="f" id="metaItem" style="margin-top:12px">${items.map((x,i) => `<option value="${i}" ${i===metaItem?"selected":""}>Item ${i+1} of ${n}: ${esc((x.title||"").slice(0,70))}</option>`).join("")}</select>` : ""}
     <div class="sect"><label class="l">Posted by</label>${poster ? `<div style="font-size:17px">${esc(poster)} <span class="help">(${esc(pkey)})</span></div>` : `<p class="help">Not in this link's metadata. Set <b>User field</b> in a profile if the site uses a different name.</p>`}</div>
-    <div class="sect"><label class="l">Saved to</label>${where}</div>
+    <div class="sect"><label class="l">Saved to</label>${where}
+      <label class="row" style="margin-top:8px;gap:8px;cursor:pointer;font-size:15px"><input type="checkbox" id="wantNfo" ${wantNfo ? "checked" : ""} style="width:18px;height:18px"> Save a .nfo next to the video</label></div>
     <div class="sect">
       <div class="row between"><label class="l" style="margin:0">Fields (${esc(pname)} profile)</label>
         <div class="row"><label class="muted" style="font-size:13px;cursor:pointer"><input type="checkbox" id="showAll" ${showAll?"checked":""}> all fields</label>
@@ -818,6 +820,7 @@ function renderMeta(){
   if ($("#metaItem")) $("#metaItem").onchange = e => { metaItem = +e.target.value; renderMeta(); };
   $("#btnEditMeta").onclick = () => { metaEdit = !metaEdit; renderMeta(); };
   $("#showAll").onchange = e => { showAll = e.target.checked; renderMeta(); };
+  $("#wantNfo").onchange = e => { wantNfo = e.target.checked; renderMeta(); };
   body.querySelectorAll("[data-fav]").forEach(b => b.onclick = () => toggleFav(b.dataset.fav));
   body.querySelectorAll("[data-tag]").forEach(el => el.onchange = () => setFileTag(el.dataset.tag, el.value));
   body.querySelectorAll("[data-k]").forEach(el => el.addEventListener("change", () => setField(el.dataset.k, el.value)));
