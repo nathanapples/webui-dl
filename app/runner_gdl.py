@@ -11,24 +11,13 @@ import os
 import sys
 
 import gallery_dl
-from gallery_dl import formatter, job
+from gallery_dl import job
 
-# Tags the app will write into video/audio files with ffmpeg (tag -> gallery-dl format string)
-EMBED_TAGS = json.loads(os.environ.get("WEBUI_EMBED_TAGS") or "{}")
-MEDIA_EXT = tuple(json.loads(os.environ.get("WEBUI_MEDIA_EXT") or "[]"))
-_fmts = {}
+import gdl_tagger  # same folder; renders tags exactly like the download does
 
-
-def render_tags(kwdict):
-    out = {}
-    for tag, tmpl in EMBED_TAGS.items():
-        try:
-            if tmpl not in _fmts:
-                _fmts[tmpl] = formatter.parse(tmpl).format_map
-            out[tag] = _fmts[tmpl](kwdict)
-        except Exception as e:
-            out[tag] = f"(error: {e})"
-    return out
+EMBED_TAGS = gdl_tagger.EMBED_TAGS
+MEDIA_EXT = gdl_tagger.MEDIA_EXT
+render_tags = gdl_tagger.render
 
 MARK = "@@WEBUI@@"
 

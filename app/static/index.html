@@ -13,11 +13,15 @@
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);font:16px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
-body.locked{overflow:hidden}
 a{color:var(--ink)}
-.top{display:flex;justify-content:flex-end;padding:12px 16px 0;padding-top:max(12px,env(safe-area-inset-top))}
+.nav{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--bg2);border-bottom:1px solid var(--line);padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top))}
+.nav a,.nav button{display:inline-flex;align-items:center;gap:8px;color:#fff;text-decoration:none;background:none;border:0;font:inherit;font-size:17px;cursor:pointer;padding:4px 6px;border-radius:6px}
+.nav a:hover,.nav button:hover{background:rgba(255,255,255,.1)}
+.nav .brand{font-weight:600;letter-spacing:.01em}
+.nav svg{flex:0 0 auto}
 .wrap{width:100%;max-width:1100px;margin:0 auto;padding:clamp(10px,5vw,48px) 16px 40px;flex:1}
 h1{font-weight:300;font-size:clamp(46px,11vw,84px);line-height:1;margin:0 0 28px;text-align:center;letter-spacing:-.01em}
 footer{text-align:center;font-size:13px;color:var(--muted);padding:18px 16px;padding-bottom:max(18px,env(safe-area-inset-bottom))}
@@ -33,9 +37,11 @@ footer a{color:var(--muted)}
   .ig input{font-size:16px;padding:8px 12px}
   .ig button{padding:8px 14px;font-size:16px}
 }
-.hint{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:center;margin:12px 0 0;font-size:14px;color:var(--muted);min-height:22px}
-.linkbtn{background:none;border:0;color:var(--muted);font:inherit;text-decoration:underline;cursor:pointer;padding:0}
-.linkbtn:hover,.linkbtn.on{color:#fff}
+.hint{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 0}
+.tbtn{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.85);border-radius:6px;padding:6px 16px;font:inherit;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.tbtn:hover{background:rgba(255,255,255,.1)}
+.tbtn.on{background:#fff;color:var(--bg)}
+.tbtn .dot{color:var(--err)}.tbtn.on .dot{color:#b3261e}
 
 /* generic */
 .btn{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.85);border-radius:6px;padding:9px 18px;font:inherit;font-size:16px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
@@ -84,7 +90,6 @@ pre{font:12px/1.45 var(--mono);background:rgba(0,0,0,.28);border:1px solid var(-
 /* preview summary */
 #summary{margin-top:14px;text-align:center}
 #summary .row{justify-content:center;gap:6px}
-.fname{display:inline-block;font:12px var(--mono);color:var(--muted);margin-top:8px;word-break:break-all;max-width:100%}
 
 /* metadata editor */
 .mrow{display:grid;grid-template-columns:190px 1fr 64px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -127,10 +132,9 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
 .bar i{display:block;height:100%;background:#fff;transition:width .4s}
 .st-done{color:var(--ok)}.st-error,.st-interrupted{color:var(--err)}.st-running{color:var(--accent)}
 
-/* settings sheet */
-.sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:max(16px,env(safe-area-inset-top)) 12px 24px}
-.sheet[hidden]{display:none}
-.sheet-inner{width:100%;max-width:900px;background:var(--sheet);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+/* settings page */
+#settingsPage h2{font-weight:300;font-size:clamp(34px,8vw,52px);margin:0 0 18px;text-align:center}
+.spanel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
 .tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--line);margin:8px -4px 14px;padding:0 4px}
 .tabs::-webkit-scrollbar{display:none}
 .tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);font:inherit;padding:8px 12px;cursor:pointer;white-space:nowrap}
@@ -138,6 +142,7 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
 .tab{display:none}.tab.on{display:block}
 .list .it{display:flex;gap:10px;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
 .list .it:last-child{border:0}
+.list .it.def{background:rgba(255,255,255,.05);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:6px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
 @media (max-width:640px){.grid2{grid-template-columns:1fr}}
 .eng{padding:12px 0;border-bottom:1px solid var(--line)}
@@ -148,14 +153,22 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
 </style>
 </head>
 <body>
-<div class="top">
-  <button class="btn sm" id="btnSettings" aria-label="Settings">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    Settings
+<nav class="nav">
+  <a href="./" id="navHome" class="brand" aria-label="webui-dl home">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>
+    webui-dl
+  </a>
+  <button type="button" id="navBack" hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    Back
   </button>
-</div>
+  <a href="settings" id="navSettings" aria-label="Settings">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
+  </a>
+</nav>
 
-<div class="wrap">
+<div class="wrap" id="home">
   <h1>webui-dl</h1>
 
   <form class="ig" id="mainform" autocomplete="off">
@@ -199,12 +212,10 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
   </div>
 </div>
 
-<footer id="footer">Web frontend for gallery-dl with yt-dlp</footer>
-
-<!-- SETTINGS SHEET -->
-<div class="sheet" id="settings" hidden>
-  <div class="sheet-inner" role="dialog" aria-label="Settings">
-    <div class="row between"><b style="font-size:20px;font-weight:600">Settings</b><button class="btn sm" id="btnCloseSettings">Close</button></div>
+<!-- SETTINGS PAGE -->
+<div class="wrap" id="settingsPage" hidden>
+  <h2>Settings</h2>
+  <div class="spanel">
     <div class="tabs" id="stabs">
       <button data-t="t-profiles" class="on">Profiles</button>
       <button data-t="t-cookies">Cookies</button>
@@ -215,7 +226,7 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
 
     <div class="tab on" id="t-profiles">
       <div id="plist-wrap">
-        <p class="help" style="margin-top:0">A profile is picked automatically when a link matches its sites. Profiles are stored only in your config folder.</p>
+        <p class="help" style="margin-top:0">The Default profile applies to every download. A site profile is picked automatically when a link matches its sites and adds to or overrides the Default. Profiles are stored only in your config folder.</p>
         <div class="list" id="plist"></div>
         <div class="row" style="margin-top:12px">
           <button class="btn solid" onclick="editProfile()">New profile</button>
@@ -252,15 +263,15 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
           <p class="help">One per line: <span class="mono">field = value</span>. <span class="mono">{field}</span> pulls from the link's metadata, <span class="mono">{a|b}</span> uses the first that exists.</p>
           <label class="l">Info fields</label>
           <input class="f mono" id="p_fields" placeholder="title, uploader, date">
-          <p class="help">Which fields the Metadata panel lists for this site, in order. User field is what the "user" bubble shows. Leave empty for the defaults.</p>
-          <label class="l">Write tags into video / audio files (gallery-dl)</label>
-          <textarea class="f" id="p_embed" rows="4" placeholder="artist = {uploader|author}&#10;title = {title}"></textarea>
-          <p class="help">One per line: <span class="mono">tag = template</span>. Uses ffmpeg after each file downloads. yt-dlp downloads already embed tags.</p>
+          <p class="help">Which fields the Metadata panel lists, in order. User field is who posted it (shown as "Posted by" and in the user bubble). Leave empty to use the Default profile's.</p>
+          <label class="l">Write tags into video / audio files</label>
+          <textarea class="f" id="p_embed" rows="6" placeholder="artist = {uploader|author}&#10;title = {title}"></textarea>
+          <p class="help" id="p_embed_help">One per line: <span class="mono">tag = template</span>. Written into each video / audio file gallery-dl downloads; empty values are skipped. yt-dlp writes its own standard tags plus keywords.</p>
           <label class="l">gallery-dl options (JSON, same format as gallery-dl.conf)</label>
           <textarea class="f" id="p_gdl" rows="8" placeholder='{"extractor": {"example": {"directory": ["{category}"]}}}'></textarea>
           <div class="grid2">
             <div><label class="l">yt-dlp extra arguments</label><input class="f mono" id="p_ytargs" placeholder="-f bestaudio -x"></div>
-            <div><label class="l">yt-dlp output template</label><input class="f mono" id="p_ytout" placeholder="(use General setting)"></div>
+            <div><label class="l">yt-dlp output template</label><input class="f mono" id="p_ytout" placeholder="(use the Default profile's)"></div>
           </div>
           <label class="l">Notes</label><input class="f" id="p_notes">
         </div>
@@ -279,6 +290,7 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
         <div class="row" style="margin-top:14px">
           <button class="btn solid" id="btnPSave">Save profile</button>
           <button class="btn danger" id="btnPDel">Delete</button>
+          <button class="btn" id="btnPReset" hidden>Reset to built-in</button>
         </div>
       </div>
     </div>
@@ -308,7 +320,6 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
     </div>
 
     <div class="tab" id="t-general">
-      <label class="l">yt-dlp output template</label><input class="f mono" id="s_ytdlp_output">
       <label class="l">yt-dlp default arguments</label><input class="f mono" id="s_ytdlp_args">
       <label class="l">gallery-dl default arguments</label><input class="f mono" id="s_gdl_args">
       <label class="l">Preview item limit</label><input class="f" id="s_preview_limit" type="number" min="1" max="500" style="max-width:140px">
@@ -319,6 +330,7 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
     </div>
   </div>
 </div>
+<footer id="footer">Web frontend for gallery-dl with yt-dlp</footer>
 <div id="toasts" aria-live="polite"></div>
 
 <script>
@@ -348,7 +360,7 @@ function toast(msg, ms){ return notify("info", "", esc(msg), ms || 3500); }
 function toastErr(msg, ms){ return notify("err", "Error", esc(msg), ms); }
 $("#toasts").addEventListener("click", e => {
   const a = e.target.closest("[data-open]"); if (!a) return;
-  e.preventDefault(); openPanel = a.dataset.open; if (openPanel === "queue") loadJobs(); if (openPanel === "log") loadAppLog(true);
+  e.preventDefault(); if (onSettings()) closeSettings(); openPanel = a.dataset.open; if (openPanel === "queue") loadJobs(); if (openPanel === "log") loadAppLog(true);
   applyPanels(); renderHint();
   const t = a.closest(".tst"); if (t && t._close) t._close();
   $("#" + (openPanel === "log" ? "logpanel" : openPanel)).scrollIntoView({behavior:"smooth", block:"nearest"});
@@ -370,12 +382,26 @@ let pvTimer = null, pvSeq = 0, activeJobs = 0;
 let openPanel = null;  // one of: opts, queue, log, meta, prof
 
 /* ---------- settings sheet ---------- */
-function openSettings(){ $("#settings").hidden = false; document.body.classList.add("locked"); openTab(document.querySelector("#stabs button.on").dataset.t); }
-function closeSettings(){ $("#settings").hidden = true; document.body.classList.remove("locked"); }
-$("#btnSettings").onclick = openSettings;
-$("#btnCloseSettings").onclick = closeSettings;
-$("#settings").addEventListener("click", e => { if (e.target.id === "settings") closeSettings(); });
-document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#settings").hidden) closeSettings(); });
+const BASE = location.pathname.replace(/settings\/?$/, "").replace(/[^/]*$/, "");
+const onSettings = () => /\/settings\/?$/.test(location.pathname);
+function route(){
+  const set = onSettings();
+  $("#home").hidden = set; $("#settingsPage").hidden = !set;
+  $("#navHome").hidden = set; $("#navBack").hidden = !set; $("#navSettings").hidden = set;
+  document.title = set ? "Settings · webui-dl" : "webui-dl";
+  if (set) openTab(document.querySelector("#stabs button.on").dataset.t);
+  window.scrollTo(0, 0);
+}
+function openSettings(){ if (!onSettings()) { history.pushState({fromHome: true}, "", BASE + "settings"); route(); } }
+function closeSettings(){
+  if (!onSettings()) return;
+  if (history.state && history.state.fromHome) history.back();
+  else { history.pushState({}, "", BASE); route(); }
+}
+$("#navSettings").onclick = e => { e.preventDefault(); openSettings(); };
+$("#navHome").onclick = e => { e.preventDefault(); if (onSettings()) closeSettings(); else window.scrollTo({top: 0, behavior: "smooth"}); };
+$("#navBack").onclick = closeSettings;
+window.addEventListener("popstate", route);
 document.querySelectorAll("#stabs button").forEach(b => b.onclick = () => openTab(b.dataset.t));
 function openTab(t){
   document.querySelectorAll("#stabs button").forEach(x => x.classList.toggle("on", x.dataset.t===t));
@@ -416,26 +442,12 @@ function activeProfile(){
 }
 function renderHint(){
   const parts = [], {p} = activeProfile();
-  const t = (k, label) => `<button class="linkbtn ${openPanel===k?"on":""}" type="button" data-act="${k}">${label}</button>`;
+  const t = (k, label) => `<button class="tbtn ${openPanel===k?"on":""}" type="button" data-act="${k}">${label}</button>`;
   parts.push(t("opts", "Options"));
   parts.push(t("queue", `Queue${activeJobs?` (${activeJobs})`:""}`));
-  parts.push(t("log", logErrors ? `Log <span style="color:var(--err)">●</span>` : "Log"));
-  if ($("#url").value.trim() || preview) parts.push(t("meta", p ? `Metadata (${esc(p.name)})` : "Metadata"));
+  parts.push(t("log", logErrors ? `Log <span class="dot">●</span>` : "Log"));
+  if ($("#url").value.trim() || preview) parts.push(t("meta", "Metadata"));
   $("#hint").innerHTML = parts.join("");
-}
-function renderProfPanel(){
-  const url = $("#url").value.trim(), host = hostOf(url), sel = $("#profile").value, {p, auto} = activeProfile();
-  let info;
-  if (sel === "-") info = "No profile will be used.";
-  else if (!url) info = "Paste a link to see which profile matches.";
-  else if (p) info = auto ? `Auto-detected <b>${esc(p.name)}</b> for ${esc(host)} (sites: ${esc((p.match||[]).join(", "))}).` : `Using <b>${esc(p.name)}</b>.`;
-  else info = `No profile matches ${esc(host || "this link")}.`;
-  $("#profinfo").innerHTML = info;
-  const btns = [];
-  if (p) btns.push(`<button class="btn sm" type="button" onclick="openSettings();openTab('t-profiles');editProfile('${esc(p.id)}')">Edit ${esc(p.name)}</button>`);
-  if (url && !p && sel !== "-") btns.push(`<button class="btn sm" type="button" onclick="newProfileForUrl()">Create profile for ${esc(host)}</button>`);
-  btns.push(`<button class="btn sm" type="button" onclick="openSettings();openTab('t-profiles')">All profiles</button>`);
-  $("#profbtns").innerHTML = btns.join("");
 }
 function applyPanels(){
   if (openPanel === "meta" && !preview && !$("#url").value.trim()) openPanel = null;
@@ -496,7 +508,8 @@ function reqBody(){
 }
 
 /* summary bubbles */
-const USER_KEYS = ["uploader","author","artist","creator","channel","username","user","owner","uploader_id"];
+const USER_KEYS = ["author","uploader","username","user","artist","creator","owner","channel","uploader_id"];
+function posterKeys(r){ const uf = r && r.profile && r.profile.user_field; return uf ? [uf] : USER_KEYS; }
 function asText(v){
   if (v == null || v === "") return "";
   if (Array.isArray(v)) return v.filter(x => x != null && x !== "").map(asText).join(", ");
@@ -510,8 +523,7 @@ function summaryData(){
   const first = items[0] ? {...items[0].meta, ...overrides} : {};
   let title = pick(eff, ["title","fulltitle"]), titleNote = "";
   if (!title && items.length > 1) { title = pick(first, ["title","fulltitle"]); if (title) titleNote = `1/${items.length}`; }
-  const prof = r.profile && profiles.find(x => x.id === r.profile.id);
-  const ukeys = prof && prof.user_field ? [prof.user_field] : USER_KEYS;
+  const ukeys = posterKeys(r);
   const user = pick(eff, ukeys) || pick(first, ukeys);
   let tags = tagList(eff.tags);
   if (!tags.length && items.length) { const seen = new Set(); for (const it of items.slice(0,50)) for (const t of tagList(it.meta.tags)) seen.add(t); tags = [...seen]; }
@@ -542,25 +554,25 @@ function renderSummary(){
       ${s.tags.length ? pill("tags", tagTxt) : ""}
       ${nov ? pill("", `${nov} edit${nov>1?"s":""}`, "hi") : ""}
     </div>
-    ${r.filename ? `<div class="fname">→ ${esc(r.filename)}</div>` : ""}
     ${(r.warnings||[]).length ? `<div class="err mono" style="margin-top:6px">${r.warnings.map(esc).join("<br>")}</div>` : ""}`;
 }
 
 /* metadata panel: profile, where it goes, what gets written, info fields */
 const PRIORITY = ["title","fulltitle","description","uploader","author","artist","creator","channel","username","user","album","track","genre","tags","date","upload_date","release_date","release_year","categories"];
-const DEFAULT_FIELDS = ["title","description","uploader","author","artist","creator","channel","username","album","tags","date","upload_date"];
+const DEFAULT_FIELDS = ["title","description","tags","date","upload_date"];
 let metaItem = 0, metaEdit = false, showAll = false;
 function renderProfPanel(){
   const url = $("#url").value.trim(), host = hostOf(url), sel = $("#profile").value, {p, auto} = activeProfile();
   let info;
-  if (sel === "-") info = "No profile will be used.";
+  if (sel === "-") info = "Only the <b>Default</b> profile is used.";
   else if (!url) info = "Paste a link to see which profile matches.";
-  else if (p) info = auto ? `Auto-detected <b>${esc(p.name)}</b> for ${esc(host)}.` : `Using <b>${esc(p.name)}</b>.`;
-  else info = `No profile matches ${esc(host || "this link")}; defaults are used.`;
+  else if (p) info = auto ? `Auto-detected <b>${esc(p.name)}</b> for ${esc(host)}, on top of the Default profile.` : `Using <b>${esc(p.name)}</b> on top of the Default profile.`;
+  else info = `No site profile matches ${esc(host || "this link")}; the <b>Default</b> profile is used.`;
   $("#profinfo").innerHTML = info;
   const b = [];
-  if (p) b.push(`<button class="btn sm" type="button" onclick="openSettings();openTab('t-profiles');editProfile('${esc(p.id)}')">Edit</button>`);
+  if (p) b.push(`<button class="btn sm" type="button" onclick="openSettings();openTab('t-profiles');editProfile('${esc(p.id)}')">Edit ${esc(p.name)}</button>`);
   else if (url && sel !== "-") b.push(`<button class="btn sm" type="button" onclick="newProfileForUrl()">Create for ${esc(host)}</button>`);
+  b.push(`<button class="btn sm" type="button" onclick="openSettings();openTab('t-profiles');editProfile('default')">Edit Default</button>`);
   $("#profbtns").innerHTML = b.join("");
 }
 function curItem(){ const items = (preview && preview.items) || []; return items[metaItem] || null; }
@@ -574,7 +586,7 @@ function renderMeta(){
   if (previewing) { body.innerHTML = `<p class="muted"><span class="spin"></span> Reading metadata…</p>`; return; }
   if (!preview) { body.innerHTML = previewErr ? `<p class="err">${esc(previewErr.message)}</p>` : ""; return; }
   const r = preview, items = r.items || [], it = curItem(), n = items.length;
-  const prof = r.profile && profiles.find(x => x.id === r.profile.id);
+  const prof = r.profile || null;
 
   // where it goes
   const path = (it && it.filename) || r.filename || "";
@@ -589,8 +601,9 @@ function renderMeta(){
   let written;
   if (r.engine === "gallery-dl") {
     const tpl = r.tag_templates || {};
-    if (!Object.keys(tpl).length) written = `<p class="help">Nothing. ${prof ? "This profile doesn't" : "No profile is matched, so nothing is set to"} write tags into the file.</p>`;
+    if (!Object.keys(tpl).length) written = `<p class="help">Nothing: no tags are set in the Default or site profile.</p>`;
     else if (it && it.media === false) written = `<p class="help">Nothing for this item: it's an image (${esc(it.meta.extension || "")}). Tags are only written into video and audio files.</p>`;
+    else if (it && it.tags && !Object.keys(it.tags).length) written = `<p class="help">Nothing: none of the tag fields have a value for this item.</p>`;
     else written = kvRows((it && it.tags) || tpl);
   } else {
     const tags = (it && it.tags) || r.tags;
@@ -603,6 +616,7 @@ function renderMeta(){
   // info fields
   const src = it ? it.meta : original, eff = {...src, ...overrides};
   const want = (prof && prof.fields && prof.fields.length) ? prof.fields : DEFAULT_FIELDS;
+  const pk = posterKeys(r), pkey = pk.find(k => asText(eff[k])), poster = pkey ? asText(eff[pkey]) : "";
   let keys = showAll ? Object.keys(eff).filter(k => !k.startsWith("_")) : want.filter(k => k in eff || k in overrides);
   if (!metaEdit) keys = keys.filter(k => fmtVal(eff[k]) !== "");
   if (showAll) keys.sort((a,b) => { const ia=PRIORITY.indexOf(a), ib=PRIORITY.indexOf(b); return (ia<0?999:ia)-(ib<0?999:ib) || a.localeCompare(b); });
@@ -618,11 +632,12 @@ function renderMeta(){
 
   body.innerHTML = `
     ${n > 1 ? `<select class="f" id="metaItem" style="margin-top:12px">${items.map((x,i) => `<option value="${i}" ${i===metaItem?"selected":""}>Item ${i+1} of ${n}: ${esc((x.title||"").slice(0,70))}</option>`).join("")}</select>` : ""}
+    <div class="sect"><label class="l">Posted by</label>${poster ? `<div style="font-size:17px">${esc(poster)} <span class="help">(${esc(pkey)})</span></div>` : `<p class="help">Not in this link's metadata. Set <b>User field</b> in a profile if the site uses a different name.</p>`}</div>
     <div class="sect"><label class="l">Saved to</label>${where}</div>
     <div class="sect"><label class="l">Written into the file</label>${written}</div>
     <div class="sect"><label class="l">Also written</label>${also}</div>
     <div class="sect">
-      <div class="row between"><label class="l" style="margin:0">Info${prof && prof.fields && prof.fields.length ? ` (from ${esc(prof.name)})` : ""}</label>
+      <div class="row between"><label class="l" style="margin:0">Info (${esc(prof ? prof.name : "Default")} profile)</label>
         <div class="row"><label class="muted" style="font-size:13px;cursor:pointer"><input type="checkbox" id="showAll" ${showAll?"checked":""}> all fields</label>
         <button class="btn sm" id="btnEditMeta">${metaEdit ? "Done" : "Edit"}</button></div></div>
       ${metaEdit && n > 1 ? `<p class="help">Edits apply to all ${n} items.</p>` : ""}
@@ -718,7 +733,7 @@ function evalExpr(expr, meta, engine){
 function renderTpl(tpl, meta, engine){
   let missing = false;
   const s = String(tpl).replace(/\{\{/g, "\x00").replace(/\}\}/g, "\x01").replace(/\{([^{}]+)\}/g, (_, e) => {
-    const v = evalExpr(e, meta, engine); if (v === null) { missing = true; return engine === "yt-dlp" ? "" : "None"; } return v;
+    const v = evalExpr(e, meta, engine); if (v === null) { missing = true; return ""; } return v;
   }).replace(/\x00/g, "{").replace(/\x01/g, "}");
   return {text: s, missing};
 }
@@ -786,11 +801,16 @@ async function refreshProfiles(){
   sel.value = [...sel.options].some(o=>o.value===cur) ? cur : "auto";
   renderHint(); if (openPanel === "meta") renderProfPanel();
 }
+let defaultProf = null;
 async function loadProfiles(){
   await refreshProfiles();
-  $("#plist").innerHTML = profiles.length ? profiles.map(p => `<div class="it"><div style="min-width:0"><b>${esc(p.name)}</b>
-     <div class="help" style="word-break:break-all">${esc((p.match||[]).join(", ")||"no sites")} · ${esc(p.engine)}${p.cookie?` · cookies: ${esc(p.cookie)}`:""}</div></div>
-     <button class="btn sm" onclick="editProfile('${esc(p.id)}')">Edit</button></div>`).join("") : `<p class="muted">No profiles yet. Create one, paste text, or import a file.</p>`;
+  try { defaultProf = await api("api/profiles/default"); } catch {}
+  const def = `<div class="it def"><div style="min-width:0"><b>Default</b>
+     <div class="help">Applies to every download · writes ${defaultProf ? Object.keys(defaultProf.embed_tags||{}).filter(k => defaultProf.embed_tags[k]).join(", ") || "no tags" : "…"}</div></div>
+     <button class="btn sm" onclick="editProfile('default')">Edit</button></div>`;
+  $("#plist").innerHTML = def + (profiles.length ? profiles.map(p => `<div class="it"><div style="min-width:0"><b>${esc(p.name)}</b>
+     <div class="help" style="word-break:break-all">${esc((p.match||[]).join(", ")||"no sites")} · ${esc(p.engine)}</div></div>
+     <button class="btn sm" onclick="editProfile('${esc(p.id)}')">Edit</button></div>`).join("") : `<p class="muted">No site profiles yet. Create one, paste text, or import a file.</p>`);
 }
 function formToProfile(){
   let gdl = {}; const gt = $("#p_gdl").value.trim();
@@ -821,17 +841,27 @@ function setMode(m){
 $("#modeForm").onclick = () => setMode("form");
 $("#modeText").onclick = () => setMode("text");
 async function editProfile(id, preset){
-  if (!cookies.length) await refreshCookies();
-  const p = id ? profiles.find(x=>x.id===id) : {...EMPTY_PROFILE, ...(preset||{})};
+  const isDef = id === "default";
+  let p;
+  if (isDef) { defaultProf = await api("api/profiles/default"); p = defaultProf; }
+  else p = id ? profiles.find(x=>x.id===id) : {...EMPTY_PROFILE, ...(preset||{})};
   editing = id || null; editMode = "form";
   $("#plist-wrap").hidden = true; $("#pedit").hidden = false; $("#pform").hidden = false; $("#ptext").hidden = true;
   $("#modeForm").classList.add("on"); $("#modeText").classList.remove("on");
-  $("#pedtitle").textContent = id ? `Edit ${p.name}` : "New profile";
+  $("#pedtitle").textContent = isDef ? "Edit Default profile" : id ? `Edit ${p.name}` : "New profile";
   profileToForm(p);
-  $("#btnPDel").hidden = !id;
+  $("#p_name").disabled = $("#p_match").disabled = isDef;
+  $("#p_embed_help").innerHTML = isDef
+    ? 'One per line: <span class="mono">tag = template</span>. Written into every video / audio file gallery-dl downloads; empty values are skipped. Tags are written as <span class="mono">keywords</span>, the tag-list field MP4, MKV, WebM and MP3 all support. yt-dlp writes its own standard tags plus keywords.'
+    : 'One per line: <span class="mono">tag = template</span>. Added on top of the Default profile\'s tags; a line with an empty value (<span class="mono">comment =</span>) turns that tag off for this site.';
+  $("#btnPDel").hidden = !id || isDef; $("#btnPReset").hidden = !isDef;
   renderExample();
 }
-function closeEditor(){ $("#pedit").hidden = true; $("#plist-wrap").hidden = false; $("#pexample").hidden = true; editing = null; }
+$("#btnPReset").onclick = async () => {
+  if (!confirm("Reset the Default profile to the built-in settings?")) return;
+  await api("api/profiles/default", {method:"DELETE"}); toast("Default profile reset"); closeEditor(); loadProfiles();
+};
+function closeEditor(){ $("#pedit").hidden = true; $("#plist-wrap").hidden = false; $("#pexample").hidden = true; $("#p_name").disabled = $("#p_match").disabled = false; editing = null; }
 function newProfileForUrl(){
   const h = hostOf($("#url").value.trim()), base = h.split(".").slice(-2).join(".");
   openSettings(); openTab("t-profiles");
@@ -867,7 +897,9 @@ function exampleSample(){
   if (!preview) return null;
   const it = (preview.items || [])[0];
   const raw = {...(preview.raw_common || {}), ...((it && it.raw) || {})};
-  return Object.keys(raw).length ? raw : {...original};
+  const out = Object.keys(raw).length ? raw : {...original};
+  out.source_url = $("#url").value.trim();
+  return out;
 }
 function currentDraft(){
   if (editMode === "text") { try { return JSON.parse($("#p_json").value); } catch { return null; } }
@@ -883,7 +915,9 @@ function renderExample(){
   $("#pex-src").textContent = `${hostOf($("#url").value.trim())}${n > 1 ? ` · item 1 of ${n}` : ""} · ${engine}`;
   const row = (k, before, tpl) => {
     const r = renderTpl(tpl, sample, engine);
-    return `<div class="exrow"><div class="k">${esc(k)}</div><div>${before !== undefined ? `<span class="muted">${esc(before || "(none)")} → </span>` : ""}<b>${esc(r.text || "(empty)")}</b>${r.missing ? ` <span class="miss">· a field here isn't in this link</span>` : ""}</div></div>`;
+    const empty = !r.text.trim();
+    const shown = empty ? `<span class="muted">${before === undefined ? "skipped: no value in this link" : "(empty)"}</span>` : `<b>${esc(r.text)}</b>${r.missing ? ` <span class="miss">· part of this isn't in this link</span>` : ""}`;
+    return `<div class="exrow"><div class="k">${esc(k)}</div><div>${before !== undefined ? `<span class="muted">${esc(before || "(none)")} → </span>` : ""}${shown}</div></div>`;
   };
   const md = Object.entries(d.metadata || {}), tg = Object.entries(d.embed_tags || {});
   $("#pex-out").innerHTML =
@@ -937,7 +971,7 @@ async function loadEngines(){
       <details ${d.installing?"open":""}><summary>Install log</summary><pre>${esc((d.log||[]).join("\n")||"(empty)")}</pre></details></div>`;
   }).join("");
   clearTimeout(engPoll);
-  if (ds.some(([,d])=>d.installing)) engPoll = setTimeout(() => { if ($("#t-engines").classList.contains("on") && !$("#settings").hidden) loadEngines(); loadFooter(); }, 2000);
+  if (ds.some(([,d])=>d.installing)) engPoll = setTimeout(() => { if ($("#t-engines").classList.contains("on") && onSettings()) loadEngines(); loadFooter(); }, 2000);
   loadFooter();
 }
 async function installEng(k,v){ try { await api(`api/engines/${k}/install`, {method:"POST", body:{version:v}}); toast(`Installing ${k} ${v}…`); setTimeout(loadEngines, 500); } catch(e){ toastErr(e.message); } }
@@ -948,10 +982,10 @@ $("#btnGdlSave").onclick = async () => { try { await api("api/gdlconfig", {metho
 $("#gdlfile").onchange = async e => { const f=e.target.files[0]; if(f) $("#gdlconf").value = await f.text(); e.target.value=""; };
 
 /* ---------- general ---------- */
-const SKEYS = ["ytdlp_output","ytdlp_args","gdl_args","preview_limit"];
+const SKEYS = ["ytdlp_args","gdl_args","preview_limit"];
 async function loadSettings(){ const s = await api("api/settings"); SKEYS.forEach(k => $("#s_"+k).value = s[k]); $("#s_embed_overrides").checked = !!s.embed_overrides; }
 $("#btnSaveSettings").onclick = async () => { const b={}; SKEYS.forEach(k=>b[k]=$("#s_"+k).value); b.embed_overrides=$("#s_embed_overrides").checked; await api("api/settings",{method:"PUT",body:b}); toast("Saved"); };
-$("#bm").href = `javascript:window.open('${location.origin}${location.pathname}?url='+encodeURIComponent(location.href))`;
+$("#bm").href = `javascript:window.open('${location.origin}${BASE}?url='+encodeURIComponent(location.href))`;
 
 /* ---------- footer ---------- */
 async function loadFooter(){
@@ -962,7 +996,7 @@ async function loadFooter(){
 }
 
 /* ---------- init ---------- */
-renderHint(); refreshProfiles(); refreshCookies(); loadJobs(); loadFooter(); loadAppLog(true); setInterval(loadFooter, 60000);
+route(); renderHint(); refreshProfiles(); refreshCookies(); loadJobs(); loadFooter(); loadAppLog(true); setInterval(loadFooter, 60000);
 const qp = new URLSearchParams(location.search).get("url");
 if (qp) { $("#url").value = qp; refreshProfiles().then(() => { renderHint(); doPreview(); }); }
 </script>

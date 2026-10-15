@@ -59,7 +59,12 @@ def coerce(ov):
 def effective(info, templates, overrides):
     vals = {k: render(t, info) for k, t in (templates or {}).items()}
     vals.update(overrides or {})
-    return coerce(vals)
+    out = coerce(vals)
+    # Tags also go into the "keywords" tag (yt-dlp itself only puts them into genre).
+    tags = out.get("tags", info.get("tags"))
+    if tags and "meta_keywords" not in info:
+        out["meta_keywords"] = ", ".join(map(str, tags)) if isinstance(tags, (list, tuple)) else str(tags)
+    return out
 
 
 def clean(d):
@@ -193,8 +198,7 @@ def main():
             print(json.dumps({"error": msg, "log": lg.lines[-400:] if lg else []}))
         return 0
     with yt_dlp.YoutubeDL(opts) as ydl:
-        if spec.get("templates") or spec.get("overrides"):
-            ydl.add_post_processor(OverridePP(spec.get("templates"), spec.get("overrides")), when="pre_process")
+        ydl.add_post_processor(OverridePP(spec.get("templates"), spec.get("overrides")), when="pre_process")
         return ydl.download([spec["url"]])
 
 

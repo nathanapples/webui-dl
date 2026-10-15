@@ -42,6 +42,7 @@ except OSError:
 GIT_SHA = os.environ.get("GIT_SHA", "")[:7]
 RUNNER_YTDLP = APP_DIR / "runner_ytdlp.py"
 RUNNER_GDL = APP_DIR / "runner_gdl.py"
+TAGGER = APP_DIR / "gdl_tagger.py"
 VENVS = CONFIG / "venvs"
 COOKIES = CONFIG / "cookies"
 RUN_DIR = CONFIG / "run"
@@ -474,6 +475,35 @@ async def put_gdlconfig(req: TextBody):
 
 
 # --------------------------------------------------------------------------- profiles
+# Who posted it: the field differs per site, so try the common ones in order.
+POSTER_CHAIN = "author|uploader|username|user[name]|user[username]|user|artist|creator|owner|channel"
+
+# The built-in Default profile: generic, applies to every download, never site specific.
+DEFAULT_PROFILE = {
+    "id": "default",
+    "name": "Default",
+    "match": [],
+    "engine": "auto",
+    "metadata": {},
+    # Written into video / audio files downloaded by gallery-dl. Empty values are skipped.
+    # Mirrors what yt-dlp's --embed-metadata writes, so files from both engines look alike.
+    "embed_tags": {
+        "title": "{title}",
+        "artist": "{" + POSTER_CHAIN + "}",
+        "date": "{date:%Y-%m-%d}",
+        "description": "{description|content|caption}",
+        "keywords": "{tags}",
+        "genre": "{genre}",
+        "comment": "{source_url}",
+    },
+    "fields": ["title", "description", "tags", "date", "upload_date"],
+    "user_field": "",
+    "gallery_dl": {},
+    "ytdlp_args": "",
+    "ytdlp_output": "%(uploader,channel|Unknown)s/%(title)s [%(id)s].%(ext)s",
+    "notes": "Applies to every download. Site profiles add to it or override it.",
+}
+
 PROFILE_FIELDS = {
     "name": "", "match": [], "engine": "auto", "metadata": {}, "embed_tags": {},
     "fields": [], "user_field": "",
@@ -481,7 +511,7 @@ PROFILE_FIELDS = {
 }
 
 
-def load_profiles() -> list[dict]:
+def _load_all() -> list[dict]:
     if PROFILES_FILE.exists():
         try:
             data = json.loads(PROFILES_FILE.read_text())
@@ -491,8 +521,30 @@ def load_profiles() -> list[dict]:
     return []
 
 
-def save_profiles(profiles: list[dict]):
-    write_private(PROFILES_FILE, json.dumps({"profiles": profiles}, indent=2))
+def load_profiles() -> list[dict]:
+    """Site profiles only."""
+    return [p for p in _load_all() if p.get("id") != "default"]
+
+
+def default_profile() -> dict:
+    saved = next((p for p in _load_all() if p.get("id") == "default"), None)
+    return {**copy.deepcopy(DEFAULT_PROFILE), **(saved or {}), "id": "default", "match": []}
+
+
+def deep_merge(a: dict, b: dict) -> dict:
+    out = copy.deepcopy(a)
+    for k, v in (b or {}).items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k] = deep_merge(out[k], v)
+        else:
+            out[k] = copy.deepcopy(v)
+    return out
+
+
+def save_profiles(profiles: list[dict], default: dict | None = None):
+    keep = default if default is not None else next((p for p in _load_all() if p.get("id") == "default"), None)
+    allp = ([keep] if keep else []) + [p for p in profiles if p.get("id") != "default"]
+    write_private(PROFILES_FILE, json.dumps({"profiles": allp}, indent=2))
 
 
 def normalize_profile(p: dict, pid: str | None = None) -> dict:
@@ -500,6 +552,8 @@ def normalize_profile(p: dict, pid: str | None = None) -> dict:
         raise HTTPException(400, "Each profile must be an object")
     out = {k: copy.deepcopy(p.get(k, v)) for k, v in PROFILE_FIELDS.items()}
     out["name"] = str(out["name"]).strip()
+    if pid == "default":
+        out["name"], out["match"] = "Default", []
     if not out["name"]:
         raise HTTPException(400, "Profile needs a name")
     m = out["match"]
@@ -561,6 +615,25 @@ async def list_profiles():
     return load_profiles()
 
 
+@app.get("/api/profiles/default")
+async def get_default_profile():
+    return {**default_profile(), "builtin": DEFAULT_PROFILE}
+
+
+@app.put("/api/profiles/default")
+async def put_default_profile(body: dict):
+    new = normalize_profile({**body, "name": "Default"}, "default")
+    save_profiles(load_profiles(), default=new)
+    return new
+
+
+@app.delete("/api/profiles/default")
+async def reset_default_profile():
+    save_profiles(load_profiles(), default={})
+    write_private(PROFILES_FILE, json.dumps({"profiles": load_profiles()}, indent=2))
+    return default_profile()
+
+
 @app.put("/api/profiles/{pid}")
 async def put_profile(pid: str, body: dict):
     profiles = load_profiles()
@@ -600,7 +673,7 @@ async def profile_match(req: MatchReq):
 
 @app.get("/api/profiles/export")
 async def export_profiles():
-    data = {"profiles": load_profiles()}
+    data = {"profiles": _load_all()}
     if GDL_CONF.exists():
         try:
             data["gallery_dl_config"] = json.loads(GDL_CONF.read_text())
@@ -627,7 +700,9 @@ async def import_profiles(req: ImportReq):
         data = {"profiles": [data]}  # a single profile
     if not isinstance(data, dict):
         raise HTTPException(400, "Expected a JSON object")
-    incoming = [normalize_profile(p) for p in data.get("profiles", [])]
+    raw = data.get("profiles", [])
+    new_default = next((p for p in raw if isinstance(p, dict) and p.get("id") == "default"), None)
+    incoming = [normalize_profile(p) for p in raw if not (isinstance(p, dict) and p.get("id") == "default")]
     gdl = data.get("gallery_dl_config")
     if not incoming and gdl is None and "extractor" in data:
         gdl = data  # a plain gallery-dl.conf
@@ -641,10 +716,10 @@ async def import_profiles(req: ImportReq):
             while any(x["id"] == p["id"] for x in profiles):
                 p["id"] += "-2"
             profiles.append(p)
-    save_profiles(profiles)
+    save_profiles(profiles, default=normalize_profile(new_default, "default") if new_default else None)
     if isinstance(gdl, dict):
         write_private(GDL_CONF, json.dumps(gdl, indent=2) + "\n")
-    return {"profiles": len(incoming), "gallery_dl_config": isinstance(gdl, dict)}
+    return {"profiles": len(incoming) + (1 if new_default else 0), "gallery_dl_config": isinstance(gdl, dict)}
 
 
 # --------------------------------------------------------------------------- cookies
@@ -763,33 +838,38 @@ def resolve(req: DLReq) -> dict:
     settings = load_settings()
     if req.profile == "auto":
         prof = match_profile(url)
-    elif req.profile in ("", "-"):
+    elif req.profile in ("", "-", "default"):
         prof = None
     else:
         prof = get_profile(req.profile)
     prof = prof or {}
-    engine = req.engine if req.engine != "auto" else prof.get("engine", "auto") or "auto"
+    base = default_profile()
+    engine = req.engine
+    if engine == "auto":
+        engine = prof.get("engine") if prof.get("engine") not in (None, "", "auto") else base.get("engine") or "auto"
     if engine not in ("auto", *ENGINES):
         raise HTTPException(400, "Unknown engine")
-    warnings = []
+    shown = prof or base
     return {
         "url": url,
         "engine": engine,
         "cookies": req.cookie != "-",
-        "profile": {"id": prof["id"], "name": prof["name"], "fields": prof.get("fields") or [],
-                    "user_field": prof.get("user_field") or ""} if prof else None,
+        "profile": {"id": shown["id"], "name": shown["name"],
+                    "fields": prof.get("fields") or base.get("fields") or [],
+                    "user_field": prof.get("user_field") or base.get("user_field") or "",
+                    "site": bool(prof)},
         "auto_profile": req.profile == "auto" and bool(prof),
-        "templates": dict(prof.get("metadata") or {}),
+        "templates": {**(base.get("metadata") or {}), **(prof.get("metadata") or {})},
         "overrides": check_fields(req.overrides),
-        "embed_tags": dict(prof.get("embed_tags") or {}),
-        "gdl_fragment": copy.deepcopy(prof.get("gallery_dl") or {}),
-        "ytdlp_output": prof.get("ytdlp_output") or settings["ytdlp_output"],
-        "ytdlp_args": split_args(settings["ytdlp_args"]) + split_args(prof.get("ytdlp_args")),
+        "embed_tags": {**(base.get("embed_tags") or {}), **(prof.get("embed_tags") or {})},
+        "gdl_fragment": deep_merge(base.get("gallery_dl") or {}, prof.get("gallery_dl") or {}),
+        "ytdlp_output": prof.get("ytdlp_output") or base.get("ytdlp_output") or settings["ytdlp_output"],
+        "ytdlp_args": split_args(settings["ytdlp_args"]) + split_args(base.get("ytdlp_args")) + split_args(prof.get("ytdlp_args")),
         "gdl_args": split_args(settings["gdl_args"]),
         "extra": split_args(req.extra_args),
         "debug": bool(getattr(req, "debug", False)),
         "settings": settings,
-        "warnings": warnings,
+        "warnings": [],
     }
 
 
@@ -797,19 +877,10 @@ def esc_fmt(v):
     return v.replace("{", "{{").replace("}", "}}") if isinstance(v, str) else v
 
 
-def embed_postprocessors(tags: dict) -> list:
-    """ffmpeg tag writing for gallery-dl downloads (same approach as a hand-written exec postprocessor)."""
-    meta = []
-    for tag, tmpl in tags.items():
-        meta += ["-metadata", f"{tag}={tmpl}"]
-    flt = f"extension in {MEDIA_EXT!r}"
-    tmp = "{_directory}/{_filename}.tmp.{extension}"
-    return [
-        {"name": "exec", "event": "after", "filter": flt,
-         "command": ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", "{_path}", "-map", "0",
-                     *meta, "-codec", "copy", "-y", tmp]},
-        {"name": "exec", "event": "after", "filter": flt, "command": ["mv", "-f", tmp, "{_path}"]},
-    ]
+def tagger_postprocessor() -> dict:
+    """gallery-dl runs app/gdl_tagger.py after each file; it writes the tags with ffmpeg."""
+    return {"name": "python", "event": "after", "function": f"{TAGGER}:tag",
+            "filter": f"extension in {MEDIA_EXT!r}"}
 
 
 def gdl_tags(ctx: dict) -> dict:
@@ -841,9 +912,10 @@ def gdl_argv(ctx: dict, mode: str, run_id: str) -> tuple[list[str], list[Path], 
                 existing = list(json.loads(GDL_CONF.read_text()).get("extractor", {}).get("postprocessors") or [])
             except Exception:
                 existing = []
-        ext["postprocessors"] = existing + embed_postprocessors(tags)
-    if tags and mode == "preview":
-        env = {"WEBUI_EMBED_TAGS": json.dumps(tags), "WEBUI_MEDIA_EXT": json.dumps(MEDIA_EXT)}
+        ext["postprocessors"] = existing + [tagger_postprocessor()]
+    if tags:
+        env = {"WEBUI_EMBED_TAGS": json.dumps(tags), "WEBUI_MEDIA_EXT": json.dumps(MEDIA_EXT),
+               "WEBUI_SOURCE_URL": ctx["url"]}
     if frag:
         p = RUN_DIR / f"{run_id}.json"
         write_private(p, json.dumps(frag))
@@ -1118,8 +1190,9 @@ def job_log(job, line):
 
 
 async def execute(job: dict, ctx: dict, engine: str) -> int:
+    env = None
     if engine == "gallery-dl":
-        argv, temp, _ = gdl_argv(ctx, "download", job["id"])
+        argv, temp, env = gdl_argv(ctx, "download", job["id"])
         confs = [a for i, a in enumerate(argv) if i and argv[i - 1] == "-c"]
         if GDL_CONF.exists():
             applog(f"Configuration file found: {GDL_CONF}")
@@ -1144,6 +1217,7 @@ async def execute(job: dict, ctx: dict, engine: str) -> int:
             stderr=asyncio.subprocess.STDOUT,
             cwd=str(DOWNLOADS),
             limit=2**20,
+            env={**os.environ, **env} if env else None,
         )
         PROCS[job["id"]] = proc
         if stdin:
@@ -1308,6 +1382,7 @@ async def quick_queue(url: str = Form(...), engine: str = Form("auto")):
     return await create_job(DLReq(url=url, engine=engine))
 
 
+@app.get("/settings")
 @app.get("/")
 async def index():
     return FileResponse(APP_DIR / "static" / "index.html")

@@ -59,25 +59,44 @@ CONFIG_DIR=./config DOWNLOAD_DIR=./downloads uvicorn app.main:app --port 7341
 
 ## Profiles
 
-A profile bundles settings for a site and is picked automatically when a link matches it. Each profile can set:
+**Default profile.** Every download starts from the built-in Default profile (Settings > Profiles > Default). It is generic, not tied to any site, and you can edit or reset it. Out of the box it writes these tags into every video / audio file gallery-dl downloads, skipping any that have no value:
+
+| Tag | From |
+|---|---|
+| title | `{title}` |
+| artist | who posted it: `author`, `uploader`, `username`, `user`, ... (first that exists) |
+| date | `{date:%Y-%m-%d}` |
+| description | `{description}` |
+| keywords | `{tags}` written as "a, b, c" (`keywords` is the tag-list field MP4, MKV, WebM and MP3 all support) |
+| genre | `{genre}` |
+| comment | the link you downloaded |
+
+yt-dlp downloads use yt-dlp's own `--embed-metadata` tags (title, artist, date, description, link, genre) and also write tags to `keywords`. The Default profile also holds the yt-dlp output template.
+
+**Site profiles** are picked automatically when a link matches their sites, and add to or override the Default. Each can set:
 
 - **Sites**: domains such as `example.com` (subdomains included), or `re:` followed by a regex for the whole link
 - **Engine**
-- **Info fields** and **User field**: which fields the Metadata panel lists, and which one the "user" bubble shows
+- **Info fields** and **User field**: which fields the Metadata panel lists, and which one is "Posted by"
 - **Metadata**: `field = value` lines; `{field}` or `{a|b}` pull from the link's own metadata
-- **Write tags into video/audio files** for gallery-dl downloads (ffmpeg), as `tag = template` lines
+- **Tags** written into video/audio files, as `tag = template` lines (an empty value turns a Default tag off)
 - **gallery-dl options**: any JSON in the same format as `gallery-dl.conf`
 - **yt-dlp** extra arguments and output template
 
-Manage them under Settings > Profiles. **Import file** accepts a profiles export, a plain list of profiles, or a whole `gallery-dl.conf`. **Export** downloads everything as one JSON file you can edit and import again.
+**Import file** and **Paste text** accept a profiles export, a single profile, a list of profiles, or a whole `gallery-dl.conf`. **Export** downloads everything as one JSON file. No site profiles ship with the app; profiles, cookies and your gallery-dl config live only in the `/config` folder.
 
-Profiles, cookies and your gallery-dl config are stored only in the `/config` folder (owner-only permissions). They are never part of the image or this repository.
+## Where files are saved
+
+- **gallery-dl:** folder and file name come from gallery-dl's own per-site defaults, unless you set `directory` / `filename` in Settings > gallery-dl config or in a profile's gallery-dl options.
+- **yt-dlp:** the output template in the Default profile (or a site profile), relative to the downloads folder.
+
+The Metadata panel shows the exact folder and file name before you download.
 
 ## Settings
 
 Cookies: every saved cookie file is used for every download (each site only receives its own cookies), so there is nothing to select.
 
-Everything is under the single **Settings** button: Profiles, Cookies, Engines (update or pin gallery-dl / yt-dlp), gallery-dl config (your global `gallery-dl.conf`), and General (output template, default arguments, preview limit).
+Settings is its own page (top right): Profiles, Cookies, Engines (update or pin gallery-dl / yt-dlp), gallery-dl config (your global `gallery-dl.conf`), and General (output template, default arguments, preview limit).
 
 Engine **Auto** tries gallery-dl first, then yt-dlp. When gallery-dl hands a link off to yt-dlp, it uses the app's yt-dlp, so both stay on the version you choose in Engines.
 
