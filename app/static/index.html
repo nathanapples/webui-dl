@@ -37,7 +37,7 @@ footer a{color:var(--muted)}
   .ig input{font-size:16px;padding:8px 12px}
   .ig button{padding:8px 14px;font-size:16px}
 }
-.hint{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:16px 0 0}
+.hint{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:10px 0 0}
 .tbtn{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.85);border-radius:6px;padding:6px 16px;font:inherit;font-size:15px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .tbtn:hover{background:rgba(255,255,255,.1)}
 .tbtn.on{background:#fff;color:var(--bg)}
@@ -88,8 +88,9 @@ pre{font:12px/1.45 var(--mono);background:rgba(0,0,0,.28);border:1px solid var(-
 #opts > *{flex:1 1 180px}
 
 /* preview summary */
-#summary{margin-top:14px;text-align:center}
-#summary .row{justify-content:center;gap:6px}
+#summary{height:30px;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:6px;overflow:hidden;white-space:nowrap;font-size:14px}
+#summary .pill{flex:0 1 auto;min-width:0}
+#summary .err{overflow:hidden;text-overflow:ellipsis}
 
 /* metadata editor */
 .mrow{display:grid;grid-template-columns:190px 1fr 64px;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -131,6 +132,19 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
 .star{background:none;border:0;color:var(--muted);font-size:19px;line-height:1;cursor:pointer;padding:0 2px}
 .star.on{color:var(--accent)}
 .linkx{background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font-size:12px;padding:0}
+.nb{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:8px;background:rgba(0,0,0,.15)}
+.nzone{display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-height:46px;padding:8px;border:1px dashed rgba(255,255,255,.45);border-radius:8px;background:rgba(0,0,0,.2)}
+.nzone.over{border-color:var(--accent);background:rgba(240,180,0,.08)}
+.npal{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.nchip{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:6px;font:13px var(--mono);cursor:grab;user-select:none;touch-action:none;border:1px solid var(--line);background:rgba(255,255,255,.1);color:#fff;max-width:100%}
+.nchip.field{background:#fff;color:var(--bg);border-color:#fff}
+.nchip.slash{background:var(--accent);color:#2a1a00;border-color:var(--accent);font-weight:700}
+.nchip.text{background:rgba(255,255,255,.06);white-space:pre}
+.nchip .x{background:none;border:0;color:inherit;opacity:.6;cursor:pointer;padding:0 0 0 2px;font-size:14px;line-height:1}
+.nchip.dragging{opacity:.3}
+.nghost{position:fixed;z-index:50;pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.4);transform:translate(-50%,-50%)}
+.ncaret{width:3px;align-self:stretch;min-height:24px;background:var(--accent);border-radius:2px}
+.nchip small{opacity:.65;font-family:inherit}
 .draftbar{margin-top:10px;padding:10px 12px;border:1px solid var(--accent);border-radius:8px;background:rgba(240,180,0,.08);display:flex;flex-direction:column;gap:8px}
 @media (max-width:640px){
   .trow{grid-template-columns:1fr 150px;gap:4px 10px}
@@ -192,9 +206,9 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
     <input id="url" type="url" inputmode="url" placeholder="URL" aria-label="URL" enterkeyhint="go">
     <button type="submit">Submit</button>
   </form>
+  <div id="summary"></div>
   <div class="hint" id="hint"></div>
 
-  <div id="summary" hidden></div>
   <div class="panel" id="opts" hidden>
     <select class="f" id="engine" aria-label="Engine">
       <option value="auto">Engine: from profile / auto</option>
@@ -205,8 +219,10 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
   </div>
 
   <div class="panel" id="metapanel" hidden>
-    <div class="row between"><b>Profile</b><div class="row" id="profbtns"></div></div>
-    <select class="f" id="profile" aria-label="Profile" style="margin-top:8px"><option value="auto">Auto-detect</option></select>
+    <div class="row between">
+      <div class="row" style="gap:10px"><b>Profile</b><select class="f" id="profile" aria-label="Profile" style="width:auto;max-width:200px;padding:4px 8px;font-size:14px"><option value="auto">Auto-detect</option></select></div>
+      <div class="row" id="profbtns"></div>
+    </div>
     <p class="help" id="profinfo"></p>
     <div id="metabody"></div>
   </div>
@@ -284,6 +300,12 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
           <label class="l">Write tags into video / audio files</label>
           <textarea class="f" id="p_embed" rows="6" placeholder="artist = {uploader|author}&#10;title = {title}"></textarea>
           <p class="help" id="p_embed_help">One per line: <span class="mono">tag = template</span>. Written into each video / audio file gallery-dl downloads; empty values are skipped. yt-dlp writes its own standard tags plus keywords.</p>
+          <label class="l">Save as (name pattern)</label>
+          <div class="grid2">
+            <div><input class="f mono" id="p_name_gdl" placeholder="gallery-dl: e.g. {category}/{author}/{title}"></div>
+            <div><input class="f mono" id="p_name_yt" placeholder="yt-dlp: e.g. {uploader}/{title} [{id}]"></div>
+          </div>
+          <p class="help">Folders and file name, separated by <span class="mono">/</span>; the extension is added for you. Easier to build from <b>Metadata › Saved to › Edit</b> on the main page. Empty = use the Default profile's naming (or the engine's own).</p>
           <label class="l">gallery-dl options (JSON, same format as gallery-dl.conf)</label>
           <textarea class="f" id="p_gdl" rows="8" placeholder='{"extractor": {"example": {"directory": ["{category}"]}}}'></textarea>
           <div class="grid2">
@@ -503,7 +525,7 @@ setInterval(() => loadAppLog(), 3000);
 
 async function doPreview(keep=false){
   const url = $("#url").value.trim(); if (!url) return;
-  if (!keep) { overrides = {}; metaItem = 0; metaEdit = false; draft = null; savingAs = false; }
+  if (!keep) { overrides = {}; metaItem = 0; metaEdit = false; draft = null; savingAs = false; naming = null; }
   const seq = ++pvSeq; previewing = true; previewErr = null;
   renderSummary(); if (openPanel === "meta") renderMeta();
   try {
@@ -540,36 +562,14 @@ const short = (t, max) => t.length > max ? t.slice(0, max) + "…" : t;
 
 function renderSummary(){
   const box = $("#summary");
-  if (previewing) { box.hidden = false; box.innerHTML = `<span class="spin"></span> <span class="muted">Reading metadata…</span>`; return; }
-  if (previewErr) {
-    const e = previewErr, d = e.data && e.data.details ? Object.entries(e.data.details).map(([k,v]) => `<div class="mono">${esc(k)}: ${esc(v)}</div>`).join("") : "";
-    box.hidden = false;
-    box.innerHTML = `<div class="err"><b>${esc(e.message)}</b>${d}</div><p class="help">Open <b>Log</b> above for details. If the site needs a login, add cookies in Settings. You can still press Submit to try anyway.</p>`;
-    return;
-  }
-  if (!preview) { box.hidden = true; return; }
-  const r = preview, n = r.count, nov = Object.keys(overrides).length, items = r.items || [];
+  if (previewing) { box.innerHTML = `<span class="spin"></span> <span class="muted">Reading metadata…</span>`; return; }
+  if (previewErr) { box.innerHTML = `<span class="err" title="${esc(previewErr.message)}">⚠ ${esc(previewErr.message)} (see Log)</span>`; return; }
+  if (!preview) { box.innerHTML = ""; return; }
+  const r = preview, n = r.count, items = r.items || [];
   const first = items[0] ? (items[0].raw || items[0].meta) : {};
   const shared = {...original, ...overrides};
   const ukeys = posterKeys(r), user = pick(shared, ukeys) || pick(first, ukeys);
-  const pkey = ukeys.find(k => asText(shared[k] ?? first[k]));
-  const favPills = effFields().filter(f => f !== pkey).map(f => {
-    let v = asText(shared[f]), note = "";
-    if (!v && items.length > 1) { v = asText(first[f]); if (v) note = ` (1/${items.length})`; }
-    return v ? pill(f + note, short(v, 32)) : "";
-  }).filter(Boolean).slice(0, 6).join("");
-  box.hidden = false;
-  box.innerHTML = `
-    <div class="row">
-      ${pill("", r.engine, "hi")}
-      ${r.site ? pill("", r.site) : ""}
-      ${user ? pill("user", user) : ""}
-      ${pill("", `${n} item${n===1?"":"s"}${r.truncated?"+":""}`)}
-      ${favPills}
-      ${nov ? pill("", `${nov} edit${nov>1?"s":""}`, "hi") : ""}
-      ${draft && draft.dirty ? pill("", "profile changed", "hi") : ""}
-    </div>
-    ${(r.warnings||[]).length ? `<div class="err mono" style="margin-top:6px">${r.warnings.map(esc).join("<br>")}</div>` : ""}`;
+  box.innerHTML = `${r.site ? pill("", r.site) : ""}${pill("", `${n} item${n===1?"":"s"}${r.truncated?"+":""}`)}${user ? pill("artist", short(user, 40)) : ""}`;
 }
 
 /* ---------- metadata panel ---------- */
@@ -694,7 +694,8 @@ async function saveDraft(asNew){
       const name = ($("#newProfName").value || "").trim(); if (!name) return toastErr("Give the new profile a name");
       const site = siteOf(hostOf($("#url").value.trim()));
       const body = d.isDefault
-        ? {...EMPTY_PROFILE, name, match: site ? [site] : [], embed_tags: diffTags(defaultProf.embed_tags || {}, d.prof.embed_tags), fields: d.prof.fields, user_field: d.prof.user_field || ""}
+        ? {...EMPTY_PROFILE, name, match: site ? [site] : [], embed_tags: diffTags(defaultProf.embed_tags || {}, d.prof.embed_tags), fields: d.prof.fields, user_field: d.prof.user_field || "",
+           naming: Object.fromEntries(Object.entries(d.prof.naming || {}).filter(([k, v]) => v !== ((defaultProf.naming || {})[k])))}
         : {...d.prof, name, match: site ? [site] : []};
       delete body.id;
       const p = await api("api/profiles/new", {method: "PUT", body});
@@ -704,10 +705,146 @@ async function saveDraft(asNew){
       await api(`api/profiles/${d.isDefault ? "default" : encodeURIComponent(d.id)}`, {method: "PUT", body: d.prof});
       notify("ok", "Profile saved", `Updated <b>${esc(d.name)}</b>.`);
     }
-    draft = null; savingAs = false;
+    draft = null; savingAs = false; naming = null;
     defaultProf = await api("api/profiles/default"); await refreshProfiles();
     doPreview(true);
   } catch (e) { toastErr(e.message); }
+}
+
+/* ---------- name builder (Saved to > Edit) ---------- */
+let naming = null;   // {engine, toks:[{t:"field"|"text"|"slash", v}], fresh}
+const SEPARATORS = [" - ", " ", "_", ".", " (", ")", " [", "]", ", "];
+function parsePattern(p){
+  const toks = []; let i = 0, text = "";
+  const flush = () => { if (text) { toks.push({t: "text", v: text}); text = ""; } };
+  p = String(p || "");
+  while (i < p.length) {
+    const c = p[i];
+    if (c === "{" && p[i+1] === "{") { text += "{"; i += 2; continue; }
+    if (c === "}" && p[i+1] === "}") { text += "}"; i += 2; continue; }
+    if (c === "{") { const j = p.indexOf("}", i); if (j < 0) { text += p.slice(i); break; } flush(); toks.push({t: "field", v: p.slice(i+1, j)}); i = j + 1; continue; }
+    if (c === "/") { flush(); toks.push({t: "slash"}); i++; continue; }
+    text += c; i++;
+  }
+  flush();
+  return toks;
+}
+function patternOf(toks){
+  return toks.map(t => t.t === "field" ? `{${t.v}}` : t.t === "slash" ? "/" : t.v.replace(/\{/g, "{{").replace(/\}/g, "}}")).join("");
+}
+function namingPatternNow(){
+  // what the draft or the saved profiles say for this engine; falls back to what the engine is doing now
+  const eng = preview.engine;
+  if (draft && draft.prof.naming && eng in draft.prof.naming) return draft.prof.naming[eng];
+  return preview.naming_now || "";
+}
+function openNaming(){
+  naming = {engine: preview.engine, toks: parsePattern(namingPatternNow())};
+  renderMeta();
+}
+function closeNaming(){ naming = null; renderMeta(); }
+function applyNaming(){
+  const d = ensureDraft(); if (!d) return;
+  d.prof.naming = {...(d.prof.naming || {}), [naming.engine]: patternOf(naming.toks)};
+  d.dirty = true; naming = null; renderMeta(); renderSummary();
+}
+function resetNaming(){
+  const d = ensureDraft(); if (!d) return;
+  const n = {...(d.prof.naming || {})}; delete n[naming.engine];
+  d.prof.naming = n; d.dirty = true; naming = null; renderMeta(); renderSummary();
+}
+function namingPreview(toks){
+  const sample = {...rowData(), source_url: $("#url").value.trim()};
+  const parts = []; let cur = [];
+  for (const t of toks) { if (t.t === "slash") { parts.push(cur); cur = []; } else cur.push(t); }
+  parts.push(cur);
+  const out = parts.filter(p => p.length).map(p => renderTpl(patternOf(p), sample, preview.engine).text.replace(/\//g, "_") || "∅");
+  const it = curItem(), ext = (it && (it.meta.extension || it.meta.ext)) || (preview.common && (preview.common.ext || preview.common.extension)) || "ext";
+  return out.length ? out.join("/") + "." + ext : "";
+}
+function fieldChipExpr(k){
+  const v = rowData()[k];
+  if (preview.engine === "gallery-dl" && (k === "date" || /^\d{4}-\d{2}-\d{2}[ T]\d{2}:/.test(String(v)))) return `${k}:%Y-%m-%d`;
+  if (preview.engine === "yt-dlp" && /^(upload_date|release_date|timestamp)$/.test(k)) return `${k}:%Y-%m-%d`;
+  return k;
+}
+function namingHtml(){
+  const data = rowData(), favs = effFields();
+  const usable = Object.keys(data).filter(k => { const v = data[k]; return (typeof v === "string" || typeof v === "number" || (Array.isArray(v) && v.length && typeof v[0] !== "object")) && asText(v) !== "" && !/^https?:\/\//.test(String(v)); });
+  usable.sort((a,b) => { const fa = favs.includes(a) ? 0 : 1, fb = favs.includes(b) ? 0 : 1; const ia=PRIORITY.indexOf(a), ib=PRIORITY.indexOf(b); return fa-fb || (ia<0?999:ia)-(ib<0?999:ib) || a.localeCompare(b); });
+  const chip = (tok, i) => `<span class="nchip ${tok.t}" data-i="${i}" title="${tok.t === "field" ? esc("{" + tok.v + "}") : ""}">${tok.t === "slash" ? "/ folder" : tok.t === "text" ? esc(tok.v) : esc(tok.v)}<button class="x" type="button" data-del="${i}" aria-label="Remove">×</button></span>`;
+  const pal = (tok, label, hint) => `<span class="nchip ${tok.t}" data-tok='${esc(JSON.stringify(tok))}' title="${esc(hint || "")}">${esc(label)}</span>`;
+  const src = {site: "this site's profile", default: "the Default profile",
+    engine: preview.engine === "gallery-dl" ? "your gallery-dl config / profile options, or gallery-dl's own defaults" : "the yt-dlp output template"}[preview.naming_from] || "";
+  return `<div class="nb" id="namer">
+    <div class="help" style="margin:0 0 6px">Drag pieces into the box (or tap to add at the end). Drag inside to reorder, out to remove. <b>/ folder</b> starts a new folder. The extension is added for you.${src ? ` Currently from ${esc(src)}.` : ""}</div>
+    ${preview.naming_site_rule && !(preview.profile && preview.profile.site) ? `<p class="help" style="color:var(--accent);margin:0 0 8px">This site (${esc(preview.site || "")}) has its own naming in your gallery-dl config, which wins over the Default profile. To change it, use <b>Save as new</b> to make a profile for this site; a site profile's naming always wins.</p>` : ""}
+    <div class="nzone" id="nzone">${naming.toks.map(chip).join("") || '<span class="muted" style="font-size:13px">Empty: drop fields here</span>'}</div>
+    <p class="help mono" id="nprev" style="word-break:break-all;margin-top:8px">→ ${esc(namingPreview(naming.toks))}</p>
+    <label class="l">Fields in this link</label>
+    <div class="npal">${usable.slice(0, 40).map(k => pal({t: "field", v: fieldChipExpr(k)}, k, asText(data[k]).slice(0, 120))).join("")}</div>
+    <label class="l">Separators</label>
+    <div class="npal">${pal({t: "slash"}, "/ folder")}${SEPARATORS.map(x => pal({t: "text", v: x}, x.replace(/ /g, "␣"))).join("")}
+      <input class="f" id="ntext" placeholder="your text" style="width:130px;padding:4px 8px;font-size:13px"><button class="btn sm" type="button" id="ntextAdd">Add text</button></div>
+    <label class="l">Pattern</label>
+    <input class="f mono" id="npattern" value="${esc(patternOf(naming.toks))}" spellcheck="false">
+    <p class="help">Same thing as text. Paste a pattern here; <span class="mono">{a|b}</span> uses the first field that exists, <span class="mono">{date:%Y-%m-%d}</span> formats a date, <span class="mono">{title[:100]}</span> shortens.</p>
+    <div class="row" style="margin-top:10px">
+      <button class="btn solid sm" type="button" id="nApply">Use this name</button>
+      <button class="btn sm" type="button" id="nReset">${draft && !draft.isDefault || (preview.profile && preview.profile.site) ? "Use the Default profile's naming" : "Reset to app default"}</button>
+      <button class="btn sm" type="button" id="nCancel">Cancel</button>
+    </div>
+  </div>`;
+}
+function bindNaming(){
+  const zone = $("#nzone"); if (!zone) return;
+  const refresh = () => { $("#npattern").value = patternOf(naming.toks); $("#nprev").textContent = "→ " + namingPreview(naming.toks); };
+  const redraw = () => { const keepT = $("#ntext").value; $("#namer").outerHTML = namingHtml(); bindNaming(); $("#ntext").value = keepT; };
+  $("#nApply").onclick = applyNaming; $("#nReset").onclick = resetNaming; $("#nCancel").onclick = closeNaming;
+  $("#npattern").oninput = e => { naming.toks = parsePattern(e.target.value); const z = $("#nzone"); const tmp = document.createElement("div"); tmp.innerHTML = namingHtml(); z.innerHTML = tmp.querySelector("#nzone").innerHTML; $("#nprev").textContent = "→ " + namingPreview(naming.toks); };
+  $("#ntextAdd").onclick = () => { const v = $("#ntext").value; if (!v) return; naming.toks.push({t: "text", v}); $("#ntext").value = ""; redraw(); };
+  $("#namer").querySelectorAll("[data-del]").forEach(b => b.onclick = e => { e.stopPropagation(); naming.toks.splice(+b.dataset.del, 1); redraw(); });
+  // drag & drop with pointer events (mouse and touch)
+  $("#namer").querySelectorAll(".nchip").forEach(el => el.addEventListener("pointerdown", e => {
+    if (e.target.closest("[data-del]")) return;
+    e.preventDefault();
+    const fromIdx = el.dataset.i !== undefined ? +el.dataset.i : null;
+    const tok = fromIdx !== null ? naming.toks[fromIdx] : JSON.parse(el.dataset.tok);
+    const sx = e.clientX, sy = e.clientY; let moved = false, ghost = null, caretAt = null;
+    const caret = document.createElement("span"); caret.className = "ncaret";
+    const zoneNow = () => $("#nzone");
+    const indexAt = (x, y) => {
+      const chips = [...zoneNow().querySelectorAll(".nchip")].filter(c => +c.dataset.i !== fromIdx);
+      for (const c of chips) { const r = c.getBoundingClientRect(); if (y < r.top) return +c.dataset.i; if (y <= r.bottom && x < r.left + r.width / 2) return +c.dataset.i; }
+      return naming.toks.length;
+    };
+    const move = ev => {
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+      if (!moved) { moved = true; ghost = el.cloneNode(true); ghost.classList.add("nghost"); document.body.appendChild(ghost); if (fromIdx !== null) el.classList.add("dragging"); }
+      ghost.style.left = ev.clientX + "px"; ghost.style.top = ev.clientY + "px";
+      const z = zoneNow(), r = z.getBoundingClientRect();
+      const inside = ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top - 10 && ev.clientY <= r.bottom + 10;
+      z.classList.toggle("over", inside);
+      caret.remove(); caretAt = null;
+      if (inside) {
+        caretAt = indexAt(ev.clientX, ev.clientY);
+        const before = z.querySelector(`.nchip[data-i="${caretAt}"]`);
+        before ? z.insertBefore(caret, before) : z.appendChild(caret);
+      }
+    };
+    const up = () => {
+      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up);
+      if (ghost) ghost.remove(); caret.remove(); zoneNow().classList.remove("over");
+      if (!moved) { if (fromIdx === null) { naming.toks.push({...tok}); redraw(); } return; }
+      if (caretAt === null) { if (fromIdx !== null) { naming.toks.splice(fromIdx, 1); redraw(); } else el.classList.remove("dragging"); return; }
+      let at = caretAt;
+      if (fromIdx !== null) { naming.toks.splice(fromIdx, 1); if (fromIdx < at) at--; }
+      naming.toks.splice(at, 0, {...tok});
+      redraw();
+    };
+    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", up);
+  }));
+  refresh();
 }
 
 function renderMeta(){
@@ -728,8 +865,6 @@ function renderMeta(){
     ${n > 1 ? `<p class="help">${n} files${dirs.size > 1 ? ` in ${dirs.size} folders` : " in this folder"}.</p>` : ""}`
     : `<p class="help">The file name is decided while downloading (the site lists ${n || "several"} item${n===1?"":"s"}).</p>`;
 
-  // poster
-  const pk = posterKeys(r), pkey = pk.find(k => asText(data[k])), poster = pkey ? asText(data[pkey]) : "";
 
   // table rows: favourites first, then fields that feed a file tag, then (all fields) everything else
   const tags = effTags(), map = fieldTagMap(tags, data), favs = effFields();
@@ -779,16 +914,7 @@ function renderMeta(){
   const host = hostOf($("#url").value.trim());
   const suggested = (host.split(".").slice(-2, -1)[0] || "New").replace(/^./, c => c.toUpperCase());
 
-  body.innerHTML = `
-    ${n > 1 ? `<select class="f" id="metaItem" style="margin-top:12px">${items.map((x,i) => `<option value="${i}" ${i===metaItem?"selected":""}>Item ${i+1} of ${n}: ${esc((x.title||"").slice(0,70))}</option>`).join("")}</select>` : ""}
-    <div class="sect"><label class="l">Posted by</label>${poster ? `<div style="font-size:17px">${esc(poster)} <span class="help">(${esc(pkey)})</span></div>` : `<p class="help">Not in this link's metadata. Set <b>User field</b> in a profile if the site uses a different name.</p>`}</div>
-    <div class="sect"><label class="l">Saved to</label>${where}
-      <label class="row" style="margin-top:8px;gap:8px;cursor:pointer;font-size:15px"><input type="checkbox" id="wantNfo" ${wantNfo ? "checked" : ""} style="width:18px;height:18px"> Save a .nfo next to the video</label></div>
-    <div class="sect">
-      <div class="row between"><label class="l" style="margin:0">Fields (${esc(pname)} profile)</label>
-        <div class="row"><label class="muted" style="font-size:13px;cursor:pointer"><input type="checkbox" id="showAll" ${showAll?"checked":""}> all fields</label>
-        <button class="btn sm" id="btnEditMeta">${metaEdit ? "Done" : "Edit values"}</button></div></div>
-      ${dirty ? `<div class="draftbar">
+  const DRAFTBAR = !dirty ? "" : `<div class="draftbar">
           <div>You changed the <b>${esc(draft.name)}</b> profile.</div>
           <div class="row">
             <button class="btn solid sm" id="btnSaveSame">Save to ${esc(draft.name)}</button>
@@ -799,7 +925,18 @@ function renderMeta(){
             <input class="f" id="newProfName" value="${esc(suggested)}" style="flex:1 1 180px;width:auto" aria-label="New profile name">
             <button class="btn solid sm" id="btnSaveNewGo">Create for ${esc(siteOf(host) || "this site")}</button>
           </div>
-        </div>` : ""}
+        </div>`;
+  body.innerHTML = `
+    ${n > 1 ? `<select class="f" id="metaItem" style="margin-top:12px">${items.map((x,i) => `<option value="${i}" ${i===metaItem?"selected":""}>Item ${i+1} of ${n}: ${esc((x.title||"").slice(0,70))}</option>`).join("")}</select>` : ""}
+    ${dirty ? DRAFTBAR : ""}
+    <div class="sect"><div class="row between"><label class="l" style="margin:0">Saved to</label>${naming ? "" : `<button class="btn sm" type="button" id="btnEditName">Edit</button>`}</div>
+      <div style="margin-top:6px">${where}</div>
+      ${naming ? namingHtml() : ""}
+      <label class="row" style="margin-top:8px;gap:8px;cursor:pointer;font-size:15px"><input type="checkbox" id="wantNfo" ${wantNfo ? "checked" : ""} style="width:18px;height:18px"> Save a .nfo next to the video</label></div>
+    <div class="sect">
+      <div class="row between"><label class="l" style="margin:0">Fields (${esc(pname)} profile)</label>
+        <div class="row"><label class="muted" style="font-size:13px;cursor:pointer"><input type="checkbox" id="showAll" ${showAll?"checked":""}> all fields</label>
+        <button class="btn sm" id="btnEditMeta">${metaEdit ? "Done" : "Edit values"}</button></div></div>
       ${metaEdit && n > 1 ? `<p class="help">Value edits apply to all ${n} items.</p>` : ""}
       <div class="ttable">
         <div class="trow th"><div class="tf">Field</div><div class="tv">Value</div><div class="tt">File tag</div></div>
@@ -818,6 +955,8 @@ function renderMeta(){
       <pre>${raw ? esc(JSON.stringify(raw, null, 2)) : "Raw data is kept for the first 20 items only."}</pre></details>`;
 
   if ($("#metaItem")) $("#metaItem").onchange = e => { metaItem = +e.target.value; renderMeta(); };
+  if ($("#btnEditName")) $("#btnEditName").onclick = openNaming;
+  if (naming) bindNaming();
   $("#btnEditMeta").onclick = () => { metaEdit = !metaEdit; renderMeta(); };
   $("#showAll").onchange = e => { showAll = e.target.checked; renderMeta(); };
   $("#wantNfo").onchange = e => { wantNfo = e.target.checked; renderMeta(); };
@@ -831,7 +970,7 @@ function renderMeta(){
     $("#btnSaveSame").onclick = () => saveDraft(false);
     $("#btnSaveNew").onclick = () => { savingAs = !savingAs; $("#saveNewRow").hidden = !savingAs; if (savingAs) $("#newProfName").select(); };
     $("#btnSaveNewGo").onclick = () => saveDraft(true);
-    $("#btnDiscard").onclick = () => { draft = null; savingAs = false; renderMeta(); renderSummary(); };
+    $("#btnDiscard").onclick = () => { draft = null; savingAs = false; naming = null; renderMeta(); renderSummary(); };
   }
 }
 function parseLike(orig, s){
@@ -961,7 +1100,7 @@ setInterval(loadJobs, 2500);
 
 /* ---------- profiles ---------- */
 let editing = null, editMode = "form";
-const EMPTY_PROFILE = {name:"",match:[],engine:"auto",metadata:{},embed_tags:{},fields:[],user_field:"",gallery_dl:{},ytdlp_args:"",ytdlp_output:"",notes:""};
+const EMPTY_PROFILE = {name:"",match:[],engine:"auto",metadata:{},embed_tags:{},fields:[],user_field:"",naming:{},gallery_dl:{},ytdlp_args:"",ytdlp_output:"",notes:""};
 const toLines = o => Object.entries(o||{}).map(([k,v]) => `${k} = ${typeof v==="string"?v:JSON.stringify(v)}`).join("\n");
 function fromLines(s, what){
   const o = {};
@@ -992,6 +1131,7 @@ function formToProfile(){
   if (gt) { try { gdl = JSON.parse(gt); } catch(e) { throw new Error("gallery-dl options are not valid JSON: " + e.message); } }
   return {name:$("#p_name").value, match:$("#p_match").value.split(/[,\s]+/).filter(Boolean), engine:$("#p_engine").value,
     user_field:$("#p_userfield").value.trim(), fields:$("#p_fields").value.split(/[,\s]+/).filter(Boolean),
+    naming:{...($("#p_name_gdl").value.trim() ? {"gallery-dl": $("#p_name_gdl").value.trim()} : {}), ...($("#p_name_yt").value.trim() ? {"yt-dlp": $("#p_name_yt").value.trim()} : {})},
     metadata:fromLines($("#p_metadata").value,"Metadata"), embed_tags:fromLines($("#p_embed").value,"Tags"), gallery_dl:gdl,
     ytdlp_args:$("#p_ytargs").value, ytdlp_output:$("#p_ytout").value, notes:$("#p_notes").value};
 }
@@ -999,6 +1139,7 @@ function profileToForm(p){
   $("#p_name").value = p.name||""; $("#p_match").value = (p.match||[]).join(", ");
   $("#p_engine").value = p.engine||"auto";
   $("#p_userfield").value = p.user_field||""; $("#p_fields").value = (p.fields||[]).join(", ");
+  $("#p_name_gdl").value = (p.naming||{})["gallery-dl"] || ""; $("#p_name_yt").value = (p.naming||{})["yt-dlp"] || "";
   $("#p_metadata").value = toLines(p.metadata); $("#p_embed").value = toLines(p.embed_tags);
   $("#p_gdl").value = Object.keys(p.gallery_dl||{}).length ? JSON.stringify(p.gallery_dl, null, 2) : "";
   $("#p_ytargs").value = p.ytdlp_args||""; $("#p_ytout").value = p.ytdlp_output||""; $("#p_notes").value = p.notes||"";

@@ -87,10 +87,13 @@ yt-dlp downloads use yt-dlp's own `--embed-metadata` tags (title, artist, date, 
 
 ## Where files are saved
 
-- **gallery-dl:** folder and file name come from gallery-dl's own per-site defaults, unless you set `directory` / `filename` in Settings > gallery-dl config or in a profile's gallery-dl options.
-- **yt-dlp:** the output template in the Default profile (or a site profile), relative to the downloads folder.
+Open **Metadata**, then **Saved to › Edit** to build the folder and file name by dragging fields from the current link (tap to add on a phone). `/ folder` starts a new folder; the extension is added for you. You can also paste a pattern such as `{category}/{uploader}/{title}`, where `{a|b}` uses the first field that exists, `{date:%Y-%m-%d}` formats a date and `{title[:100]}` shortens.
 
-The Metadata panel shows the exact folder and file name before you download.
+- Saved to a **site profile**, the pattern always wins for that site.
+- Saved to the **Default profile**, it applies to every site that has no naming of its own (site rules in your gallery-dl config still win; the builder tells you when that happens).
+- **Reset to app default** goes back to gallery-dl's own per-site names and the built-in yt-dlp template.
+
+Everything is stored in `/config`, so updating the app never changes your naming.
 
 ## Settings
 

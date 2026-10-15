@@ -503,6 +503,7 @@ DEFAULT_PROFILE = {
     },
     "fields": ["title", "description", "tags", "date", "upload_date"],
     "user_field": "",
+    "naming": {},   # {"gallery-dl": "folder/folder/file pattern", "yt-dlp": "..."}; empty = engine defaults
     "gallery_dl": {},
     "ytdlp_args": "",
     "ytdlp_output": "%(uploader,channel|Unknown)s/%(title)s [%(id)s].%(ext)s",
@@ -511,7 +512,7 @@ DEFAULT_PROFILE = {
 
 PROFILE_FIELDS = {
     "name": "", "match": [], "engine": "auto", "metadata": {}, "embed_tags": {},
-    "fields": [], "user_field": "",
+    "fields": [], "user_field": "", "naming": {},
     "gallery_dl": {}, "ytdlp_args": "", "ytdlp_output": "", "notes": "",
 }
 
@@ -578,6 +579,19 @@ def normalize_profile(p: dict, pid: str | None = None) -> dict:
         f = [x for x in re.split(r"[,\s]+", f) if x]
     out["fields"] = [str(x).strip() for x in f if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(x).strip())]
     out["user_field"] = str(out["user_field"] or "").strip()
+    naming = out["naming"] or {}
+    if not isinstance(naming, dict):
+        raise HTTPException(400, "naming must be an object")
+    out["naming"] = {}
+    for eng, pat in naming.items():
+        if eng not in ENGINES:
+            raise HTTPException(400, f"Unknown engine in naming: {eng}")
+        pat = str(pat or "").strip().strip("/")
+        if not pat:
+            continue
+        if any(part.strip() in (".", "..") for part in split_pattern(pat)):
+            raise HTTPException(400, "A folder in the name pattern can't be . or ..")
+        out["naming"][eng] = pat
     out["metadata"] = check_fields(out["metadata"] or {})
     out["embed_tags"] = check_fields(out["embed_tags"] or {}, "tag")
     if not isinstance(out["gallery_dl"], dict):
@@ -920,6 +934,63 @@ class DLReq(BaseModel):
     nfo: bool = True            # write a .nfo next to each downloaded video
 
 
+def split_pattern(pattern: str) -> list[str]:
+    """Split "a/{b|c}/file" on slashes that are outside {...}."""
+    parts, cur, depth = [], "", 0
+    for ch in str(pattern):
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth = max(0, depth - 1)
+        if ch == "/" and depth == 0:
+            parts.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    parts.append(cur)
+    return [p for p in parts if p.strip()]
+
+
+def gdl_naming(pattern: str) -> tuple[list[str], str]:
+    parts = split_pattern(pattern)
+    return parts[:-1], (parts[-1] if parts else "{filename}") + ".{extension}"
+
+
+def to_ytdlp_template(pattern: str) -> str:
+    """{a|b} -> %(a,b)s, {date:%Y-%m-%d} -> %(date>%Y-%m-%d)s, {x[0]} -> %(x.0)s, {x[:50]} -> %(x.:50)s."""
+    def field(expr):
+        body, _, fmt = expr.partition(":") if not re.match(r"^[^|]*\[[^\]]*:", expr) else (expr, "", "")
+        alts = []
+        for alt in body.split("|"):
+            alt = alt.strip()
+            alt = re.sub(r"\[(-?\d*:-?\d*)\]", r".\1", alt)
+            alt = re.sub(r"\[(-?\d+)\]", r".\1", alt)
+            alt = re.sub(r"\[['\"]?([^\]'\"]+)['\"]?\]", r".\1", alt)
+            alts.append(alt)
+        if fmt and fmt.startswith("%") and alts:
+            alts = ["upload_date" if a == "date" else a for a in alts]
+            return f"%({','.join(alts)}>{fmt})s"
+        return f"%({','.join(alts)})s"
+    out = ""
+    for piece in re.split(r"(\{[^{}]*\})", pattern):
+        out += field(piece[1:-1]) if piece.startswith("{") and piece.endswith("}") else piece.replace("%", "%%")
+    return out + ".%(ext)s"
+
+
+def from_ytdlp_template(tmpl: str) -> str:
+    """Rough reverse of to_ytdlp_template, for showing the current yt-dlp naming as a pattern."""
+    t = re.sub(r"\.%\(ext\)s$", "", tmpl or "")
+    def conv(m):
+        body = m.group(1)
+        body = re.sub(r"\|[^)]*$", "", body)           # drop yt-dlp default value
+        date = ""
+        if ">" in body:
+            body, date = body.split(">", 1)
+        alts = [a for a in body.split(",") if a]
+        return "{" + "|".join(alts) + (":" + date if date else "") + "}"
+    return re.sub(r"%\(([^)]*)\)[a-z]", conv, t).replace("%%", "%")
+
+
 def resolve(req: DLReq) -> dict:
     url = check_url(req.url)
     settings = load_settings()
@@ -950,6 +1021,8 @@ def resolve(req: DLReq) -> dict:
         "overrides": check_fields(req.overrides),
         "embed_tags": {**(base.get("embed_tags") or {}), **(prof.get("embed_tags") or {})},
         "gdl_fragment": deep_merge(base.get("gallery_dl") or {}, prof.get("gallery_dl") or {}),
+        "naming_base": dict(base.get("naming") or {}),
+        "naming_site": dict(prof.get("naming") or {}),
         "ytdlp_output": prof.get("ytdlp_output") or base.get("ytdlp_output") or settings["ytdlp_output"],
         "ytdlp_args": split_args(settings["ytdlp_args"]) + split_args(base.get("ytdlp_args")) + split_args(prof.get("ytdlp_args")),
         "gdl_args": split_args(settings["gdl_args"]),
@@ -985,6 +1058,13 @@ def gdl_argv(ctx: dict, mode: str, run_id: str) -> tuple[list[str], list[Path], 
     if GDL_CONF.exists():
         argv += ["-c", str(GDL_CONF)]
     frag = copy.deepcopy(ctx["gdl_fragment"])
+    # Naming: a site profile's pattern goes at the top level (beats every other setting);
+    # the Default profile's goes at extractor level, so per-site gallery-dl rules still win.
+    if ctx["naming_site"].get("gallery-dl"):
+        frag["directory"], frag["filename"] = gdl_naming(ctx["naming_site"]["gallery-dl"])
+    elif ctx["naming_base"].get("gallery-dl"):
+        ext = frag.setdefault("extractor", {})
+        ext["directory"], ext["filename"] = gdl_naming(ctx["naming_base"]["gallery-dl"])
     keywords = {**ctx["templates"], **{k: esc_fmt(v) for k, v in ctx["overrides"].items()}}
     tags = gdl_tags(ctx)
     write_nfo = ctx.get("nfo") and mode == "download"
@@ -1081,8 +1161,13 @@ def ytdlp_embeds(ctx: dict) -> bool:
     return any(a in args for a in ("--embed-metadata", "--add-metadata")) and "--no-embed-metadata" not in args
 
 
+def ytdlp_output(ctx: dict) -> str:
+    pat = ctx["naming_site"].get("yt-dlp") or ctx["naming_base"].get("yt-dlp")
+    return to_ytdlp_template(pat) if pat else ctx["ytdlp_output"]
+
+
 def ytdlp_spec(ctx: dict, mode: str, run_id: str) -> tuple[dict, list[Path]]:
-    args, temp = ["-P", str(DOWNLOADS), "-o", ctx["ytdlp_output"]], []
+    args, temp = ["-P", str(DOWNLOADS), "-o", ytdlp_output(ctx)], []
     if mode == "download":
         args += ["--newline", *ctx["ytdlp_args"]]
         if ctx.get("debug"):
@@ -1157,9 +1242,13 @@ async def preview_gdl(ctx):
         msg = next((l for l in reversed(err.splitlines()) if "[error]" in l), None) or \
             next((l for l in reversed(err.splitlines()) if l.strip()), None)
         raise PreviewError(msg or ("gallery-dl found nothing at this link" if rc == 0 else f"exit {rc}"), log)
-    items, dirs = [], []
+    items, dirs, naming_now, site_rule = [], [], "", False
     for r in recs:
-        if r["t"] == "dir":
+        if r["t"] == "fmt" and not naming_now:
+            site_rule = bool(r.get("site_rule"))
+            fname = re.sub(r"\.\{extension\}$", "", r.get("filename") or "")
+            naming_now = "/".join([*(r.get("directory") or []), fname])
+        elif r["t"] == "dir":
             dirs.append(r["meta"])
         elif r["t"] == "file":
             m = clean_meta(r["meta"])
@@ -1190,6 +1279,9 @@ async def preview_gdl(ctx):
         "log": log,
         "tag_templates": gdl_tags(ctx),
         "writes": writes_info(ctx, "gallery-dl"),
+        "naming_now": naming_now,
+        "naming_from": "site" if ctx["naming_site"].get("gallery-dl") else "default" if ctx["naming_base"].get("gallery-dl") else "engine",
+        "naming_site_rule": site_rule and not ctx["naming_site"].get("gallery-dl"),
     }
 
 
@@ -1212,6 +1304,8 @@ async def preview_ytdlp(ctx):
     res["writes"] = writes_info(ctx, "yt-dlp")
     res["embeds"] = spec["embed"]
     res["tag_templates"] = spec["embed_tags"]
+    res["naming_now"] = ctx["naming_site"].get("yt-dlp") or ctx["naming_base"].get("yt-dlp") or from_ytdlp_template(ytdlp_output(ctx))
+    res["naming_from"] = "site" if ctx["naming_site"].get("yt-dlp") else "default" if ctx["naming_base"].get("yt-dlp") else "engine"
     for obj in [res, *res.get("items", [])]:
         obj["filename"] = rel(obj.get("filename"))
     return res

@@ -51,8 +51,36 @@ def emit(obj):
 _orig_directory = job.SimulationJob.handle_directory
 
 
+_fmt_sent = []
+
+
+def _emit_formats(self):
+    if _fmt_sent:
+        return
+    _fmt_sent.append(1)
+    try:
+        extr = self.extractor
+        fn = extr.config("filename")
+        if isinstance(fn, dict):
+            fn = fn.get("") or next((v for k, v in fn.items() if k), None)
+        dr = extr.config("directory")
+        if isinstance(dr, dict):
+            dr = dr.get("") or next((v for k, v in dr.items() if k), None)
+        # does a site-specific gallery-dl setting decide the name for this site?
+        from gallery_dl import config as gconfig
+        cats = [c for c in (extr.category, getattr(extr, "basecategory", None)) if c]
+        site_rule = any(gconfig.get(("extractor", c), k) is not None or
+                        gconfig.get(("extractor", c, extr.subcategory), k) is not None
+                        for c in cats for k in ("directory", "filename"))
+        emit({"t": "fmt", "filename": fn or extr.filename_fmt, "site_rule": site_rule,
+              "directory": list(dr if dr is not None else extr.directory_fmt)})
+    except Exception as e:
+        self.log.warning("preview: could not read the name format: %s", e)
+
+
 def handle_directory(self, kwdict):
     _orig_directory(self, kwdict)
+    _emit_formats(self)
     try:
         self.pathfmt.set_directory(kwdict)
     except Exception as e:
