@@ -22,9 +22,20 @@ a{color:var(--ink)}
 .nav a:hover,.nav button:hover{background:rgba(255,255,255,.1)}
 .nav .brand{font-weight:600;letter-spacing:.01em}
 .nav svg{flex:0 0 auto}
-.wrap{width:100%;max-width:1100px;margin:0 auto;padding:clamp(40px,9vw,64px) 16px 40px;flex:1}
+.wrap{width:100%;max-width:1100px;margin:0 auto;padding:clamp(10px,5vw,48px) 16px 40px;flex:1}
+body.home{height:100vh;height:100dvh;overflow:hidden}
+#home{flex:1 1 auto;min-height:0;width:100%;max-width:1100px;margin:0 auto;padding:0 16px;display:flex;flex-direction:column}
+#home .above{flex:1 1 0;display:flex;flex-direction:column;justify-content:flex-end;transition:flex-grow .3s ease}
+#home .below{flex:1 1 0;min-height:0;display:flex;flex-direction:column;transition:flex-grow .3s ease}
+#home.open .above{flex-grow:0;padding-top:12px}
+#home.open .below{flex-grow:1}
+#home .below > #summary,#home .below > .hint,#home > form{flex:0 0 auto}
+#panels{flex:1 1 auto;min-height:0;overflow-y:auto;padding-bottom:12px;-webkit-overflow-scrolling:touch}
+#panels > .panel:first-child{margin-top:12px}
+#logpanel:not([hidden]){display:flex;flex-direction:column;height:calc(100% - 16px);box-sizing:border-box}
+#logpanel #applog{flex:1 1 auto;min-height:80px;max-height:none}
 h1{font-weight:300;font-size:clamp(46px,11vw,84px);line-height:1;margin:0 0 28px;text-align:center;letter-spacing:-.01em}
-footer{text-align:center;font-size:13px;color:var(--muted);padding:18px 16px;padding-bottom:max(18px,env(safe-area-inset-bottom))}
+footer{flex:0 0 auto;text-align:center;font-size:13px;color:var(--muted);padding:10px 16px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
 footer a{color:var(--muted)}
 
 /* main input group */
@@ -67,16 +78,16 @@ details summary{cursor:pointer;color:var(--muted);margin:10px 0 6px}
 pre{font:12px/1.45 var(--mono);background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto;max-height:360px;white-space:pre-wrap;word-break:break-all;margin:6px 0}
 .spin{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:s .8s linear infinite;vertical-align:-2px}
 @keyframes s{to{transform:rotate(360deg)}}
-#toasts{position:fixed;top:max(10px,env(safe-area-inset-top));right:10px;z-index:40;display:flex;flex-direction:column;gap:6px;width:min(300px,calc(100vw - 20px));pointer-events:none}
-.tst{pointer-events:auto;position:relative;overflow:hidden;display:flex;gap:10px;align-items:center;background:#fff;color:#4a0657;border-radius:8px;padding:8px 6px 8px 12px;box-shadow:0 6px 20px rgba(0,0,0,.3);font-size:15px;line-height:1.3;animation:tin .22s ease-out}
+#toasts{position:fixed;top:max(14px,env(safe-area-inset-top));right:14px;z-index:40;display:flex;flex-direction:column;gap:10px;width:min(380px,calc(100vw - 28px));pointer-events:none}
+.tst{pointer-events:auto;position:relative;overflow:hidden;display:flex;gap:16px;align-items:center;background:#fff;color:#4a0657;border-radius:8px;padding:18px 14px 18px 20px;box-shadow:0 10px 30px rgba(0,0,0,.35);font-size:17px;line-height:1.4;animation:tin .22s ease-out}
 .tst.out{animation:tout .2s ease-in forwards}
-.tst svg.ic{flex:0 0 auto;width:24px;height:24px}
-.tst .tt{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tst .tb{font-size:13px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tst svg.ic{flex:0 0 auto;width:42px;height:42px}
+.tst .tt{font-weight:700;margin-bottom:6px}
+.tst .tb{word-break:break-word}
 .tst a{color:#b100e8}
-.tst .x{flex:0 0 auto;align-self:center;margin-left:auto;background:none;border:0;color:#4a0657;cursor:pointer;padding:4px;display:flex}
+.tst .x{flex:0 0 auto;align-self:center;margin-left:auto;background:none;border:0;color:#4a0657;cursor:pointer;padding:6px;display:flex}
 .tst.err{color:#7a0f1d}.tst.err .x{color:#7a0f1d}
-.tst .tbar{position:absolute;left:0;bottom:0;height:2px;background:currentColor;opacity:.35;animation:tbar linear forwards}
+.tst .tbar{position:absolute;left:0;bottom:0;height:3px;background:currentColor;opacity:.35;animation:tbar linear forwards}
 @keyframes tin{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
 @keyframes tout{to{opacity:0;transform:translateX(24px)}}
 @keyframes tbar{from{width:100%}to{width:0}}
@@ -199,48 +210,52 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
   </a>
 </nav>
 
-<div class="wrap" id="home">
-  <h1>webui-dl</h1>
+<div id="home">
+  <div class="above"><h1>webui-dl</h1></div>
 
   <form class="ig" id="mainform" autocomplete="off">
     <input id="url" type="url" inputmode="url" placeholder="URL" aria-label="URL" enterkeyhint="go">
     <button type="submit">Submit</button>
   </form>
-  <div id="summary"></div>
-  <div class="hint" id="hint"></div>
+  <div class="below">
+    <div id="summary"></div>
+    <div class="hint" id="hint"></div>
 
-  <div class="panel" id="opts" hidden>
-    <select class="f" id="engine" aria-label="Engine">
-      <option value="auto">Engine: from profile / auto</option>
-      <option value="gallery-dl">Engine: gallery-dl</option>
-      <option value="yt-dlp">Engine: yt-dlp</option>
-    </select>
-    <input class="f mono" id="extra" placeholder="Extra arguments, e.g. --range 1-10">
-  </div>
-
-  <div class="panel" id="metapanel" hidden>
-    <div class="row between">
-      <div class="row" style="gap:10px"><b>Profile</b><select class="f" id="profile" aria-label="Profile" style="width:auto;max-width:200px;padding:4px 8px;font-size:14px"><option value="auto">Auto-detect</option></select></div>
-      <div class="row" id="profbtns"></div>
-    </div>
-    <p class="help" id="profinfo"></p>
-    <div id="metabody"></div>
-  </div>
-  <div class="panel" id="logpanel" hidden>
-    <div class="row between"><b>Log</b>
-      <div class="row">
-        <label class="muted" style="font-size:14px;cursor:pointer" title="Extra detail from gallery-dl / yt-dlp for the next preview and downloads"><input type="checkbox" id="debug"> Verbose</label>
+    <div id="panels">
+      <div class="panel" id="opts" hidden>
+        <select class="f" id="engine" aria-label="Engine">
+          <option value="auto">Engine: from profile / auto</option>
+          <option value="gallery-dl">Engine: gallery-dl</option>
+          <option value="yt-dlp">Engine: yt-dlp</option>
+        </select>
+        <input class="f mono" id="extra" placeholder="Extra arguments, e.g. --range 1-10">
       </div>
-    </div>
-    <pre id="applog"></pre>
-  </div>
 
-  <div class="panel" id="queue" hidden>
-    <div class="row between"><b>Queue</b><button class="btn sm" id="btnClear">Clear finished</button></div>
-    <div id="jobs"></div>
-    <div id="logbox" hidden>
-      <div class="row between" style="margin-top:12px"><b id="logtitle" style="word-break:break-all">Log</b><button class="btn sm" onclick="closeLog()">Close log</button></div>
-      <pre id="logpre"></pre>
+      <div class="panel" id="metapanel" hidden>
+        <div class="row between">
+          <div class="row" style="gap:10px"><b>Profile</b><select class="f" id="profile" aria-label="Profile" style="width:auto;max-width:200px;padding:4px 8px;font-size:14px"><option value="auto">Auto-detect</option></select></div>
+          <div class="row" id="profbtns"></div>
+        </div>
+        <p class="help" id="profinfo"></p>
+        <div id="metabody"></div>
+      </div>
+      <div class="panel" id="logpanel" hidden>
+        <div class="row between"><b>Log</b>
+          <div class="row">
+            <label class="muted" style="font-size:14px;cursor:pointer" title="Extra detail from gallery-dl / yt-dlp for the next preview and downloads"><input type="checkbox" id="debug"> Verbose</label>
+          </div>
+        </div>
+        <pre id="applog"></pre>
+      </div>
+
+      <div class="panel" id="queue" hidden>
+        <div class="row between"><b>Queue</b><button class="btn sm" id="btnClear">Clear finished</button></div>
+        <div id="jobs"></div>
+        <div id="logbox" hidden>
+          <div class="row between" style="margin-top:12px"><b id="logtitle" style="word-break:break-all">Log</b><button class="btn sm" onclick="closeLog()">Close log</button></div>
+          <pre id="logpre"></pre>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -383,7 +398,7 @@ const TICONS = {
 };
 const toastByKey = {};
 function notify(kind, title, html, ms, key){
-  ms = ms || (kind === "err" ? 8000 : 4000);
+  ms = ms || (kind === "err" ? 8000 : 5000);
   let el = key && toastByKey[key];
   const fresh = !(el && !el._closed && el.isConnected);
   if (fresh) {
@@ -391,26 +406,26 @@ function notify(kind, title, html, ms, key){
     el._close = () => { if (el._closed) return; el._closed = true; el.classList.add("out"); setTimeout(() => el.remove(), 220); if (key && toastByKey[key] === el) delete toastByKey[key]; };
   }
   el.className = "tst " + kind; el.setAttribute("role", kind === "err" ? "alert" : "status");
-  el.innerHTML = `${TICONS[kind] || TICONS.info}<div style="min-width:0;flex:1">${title ? `<div class="tt">${title}</div>` : ""}${html ? `<div class="tb">${html}</div>` : ""}</div>
-    <button class="x" type="button" aria-label="Dismiss"><svg width="16" height="16" viewBox="0 0 22 22" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M5 5l12 12M17 5L5 17"/></svg></button>
+  el.innerHTML = `${TICONS[kind] || TICONS.info}<div style="min-width:0;flex:1">${title ? `<div class="tt">${esc(title)}</div>` : ""}<div class="tb">${html}</div></div>
+    <button class="x" type="button" aria-label="Dismiss"><svg width="22" height="22" viewBox="0 0 22 22" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M5 5l12 12M17 5L5 17"/></svg></button>
     <i class="tbar" style="animation-duration:${ms}ms"></i>`;
   el.querySelector(".x").onclick = el._close;
   clearTimeout(el._timer); el._timer = setTimeout(el._close, ms);
   if (key) toastByKey[key] = el;
   if (fresh) {
     $("#toasts").appendChild(el);
-    while ($("#toasts").children.length > 2) $("#toasts").firstElementChild.remove();
+    while ($("#toasts").children.length > 4) $("#toasts").firstElementChild.remove();
   }
   return el;
 }
-function toast(msg, ms){ return notify("info", esc(msg), "", ms || 3000); }
+function toast(msg, ms){ return notify("info", "", esc(msg), ms || 3500); }
 function toastErr(msg, ms){ return notify("err", "Error", esc(msg), ms); }
 $("#toasts").addEventListener("click", e => {
   const a = e.target.closest("[data-open]"); if (!a) return;
   e.preventDefault(); if (onSettings()) closeSettings(); openPanel = a.dataset.open; if (openPanel === "queue") loadJobs(); if (openPanel === "log") loadAppLog(true);
   applyPanels(); renderHint();
   const t = a.closest(".tst"); if (t && t._close) t._close();
-  $("#" + (openPanel === "log" ? "logpanel" : openPanel)).scrollIntoView({behavior:"smooth", block:"nearest"});
+  $("#panels").scrollTop = 0;
 });
 async function api(path, opts={}){
   const o = {...opts, headers:{"Content-Type":"application/json", ...(opts.headers||{})}};
@@ -435,10 +450,11 @@ const onSettings = () => /\/settings\/?$/.test(location.pathname);
 function route(){
   const set = onSettings();
   $("#home").hidden = set; $("#settingsPage").hidden = !set;
+  document.body.classList.toggle("home", !set);
   $("#navHome").hidden = set; $("#navBack").hidden = !set; $("#navSettings").hidden = set;
   document.title = set ? "Settings · webui-dl" : "webui-dl";
   if (set) openTab(document.querySelector("#stabs button.on").dataset.t);
-  window.scrollTo(0, 0);
+  window.scrollTo(0, 0); if ($("#panels")) $("#panels").scrollTop = 0;
 }
 function openSettings(){ if (!onSettings()) { history.pushState({fromHome: true}, "", BASE + "settings"); route(); } }
 function closeSettings(){
@@ -503,6 +519,7 @@ function applyPanels(){
   $("#queue").hidden = openPanel !== "queue";
   $("#logpanel").hidden = openPanel !== "log";
   $("#metapanel").hidden = openPanel !== "meta";
+  $("#home").classList.toggle("open", !!openPanel);
 }
 $("#hint").addEventListener("click", e => {
   const a = e.target.closest("[data-act]"); if (!a) return;
@@ -707,11 +724,11 @@ async function saveDraft(asNew){
         : {...d.prof, name, match: site ? [site] : []};
       delete body.id;
       const p = await api("api/profiles/new", {method: "PUT", body});
-      notify("ok", `Created profile ${esc(p.name)}`);
+      notify("ok", "Profile saved", `Created <b>${esc(p.name)}</b> for ${esc(site)}.`);
       $("#profile").value = "auto";
     } else {
       await api(`api/profiles/${d.isDefault ? "default" : encodeURIComponent(d.id)}`, {method: "PUT", body: d.prof});
-      notify("ok", `Saved ${esc(d.name)} profile`);
+      notify("ok", "Profile saved", `Updated <b>${esc(d.name)}</b>.`);
     }
     draft = null; savingAs = false; naming = null;
     defaultProf = await api("api/profiles/default"); await refreshProfiles();
@@ -1001,7 +1018,7 @@ async function go(){
   if (body.engine==="auto" && preview) body.engine = preview.engine;
   try {
     const j = await api("api/jobs", {method:"POST", body});
-    notify("ok", `Added to <a href="#" data-open="queue">queue</a>`, "", 6000, "job-" + j.id);
+    notify("ok", "Success!", `Added <a href="#" data-open="queue">one item</a> to the download queue.`, 8000, "job-" + j.id);
     seenJobs[j.id] = j.status;
     $("#url").value=""; preview=null; previewErr=null; overrides={}; original={};
     if (openPanel === "meta") openPanel = null;
@@ -1070,8 +1087,8 @@ async function loadJobs(){
     for (const j of jobs) {
       const was = seenJobs[j.id];
       if (was && was !== j.status && (was === "queued" || was === "running")) {
-        if (j.status === "done") notify("ok", `Downloaded${j.files > 1 ? ` · ${j.files} files` : ""}`, "", 4000, "job-" + j.id);
-        else if (j.status === "error") notify("err", `Download failed · <a href="#" data-open="log">log</a>`, "", 8000, "job-" + j.id);
+        if (j.status === "done") notify("ok", "Download finished", `${esc(shortUrl(j.url))}${j.files ? ` · ${j.files} file${j.files>1?"s":""}` : ""}`, 5000, "job-" + j.id);
+        else if (j.status === "error") notify("err", "Download failed", `${esc(shortUrl(j.url))} · <a href="#" data-open="log">see log</a>`, 8000, "job-" + j.id);
       }
     }
   }
