@@ -29,6 +29,44 @@ def uniq(seq, n=MAX_EACH):
     return out
 
 
+WORDS = re.compile(r"api|graphql|shoot|scene|video|clip|play|stream|m3u8|mpd|mp4|hls|dash|media|download|cdn|token|signed", re.I)
+
+
+def scan_scripts(ydl_opts, page_url, scripts, host, max_files=14):
+    out, seen_str, queue, done = [], [], [s for s in scripts if urlparse(s).netloc == host], []
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        while queue and len(done) < max_files:
+            src = queue.pop(0)
+            if src in done:
+                continue
+            done.append(src)
+            try:
+                js = ydl.urlopen(src).read().decode("utf-8", "replace")
+            except Exception as e:
+                out.append(f"script failed: {src.rsplit('/', 1)[-1]}: {e}")
+                continue
+            name = src.rsplit("/", 1)[-1]
+            # chunks this script loads; prefer the ones that sound like a video or shoot page
+            chunks = [urljoin(src, c) for c in re.findall(r"""["'`]((?:\./|\.\./|/)?[\w./-]*?[\w-]+\.[\w-]{6,12}\.js)["'`]""", js)]
+            likely = [c for c in chunks if re.search(r"shoot|scene|video|play|clip|watch|media|stream|api|store|service", c, re.I)]
+            for c in likely + chunks:
+                if c not in queue and c not in done and urlparse(c).netloc == host:
+                    queue.append(c)
+            strings = re.findall(r"""["'`]([^"'`\n]{3,140})["'`]""", js)
+            hits = [x for x in strings if (x.startswith("/") or x.startswith("http") or "${" in x) and WORDS.search(x)
+                    and not re.search(r"\.(css|svg|png|jpe?g|woff2?)\b", x)]
+            hits = [h for h in uniq(hits, 40) if h not in seen_str][:max(0, 90 - len(seen_str))]
+            seen_str += hits
+            out.append(f"script {name}: {len(js):,} characters, {len(chunks)} chunk(s), {len(hits)} path(s)")
+            for h in hits[:25]:
+                out.append("  path: " + short(h, 150))
+            for k in uniq(re.findall(r"""(baseURL|apiUrl|API_URL|apiBase|VITE_\w+)\s*[:=]\s*["'`]([^"'`]{1,120})""", js), 6):
+                out.append(f"  setting: {k[0]}={k[1]}")
+    if len(done) < len(queue) + len(done):
+        out.append(f"(read {len(done)} scripts, {len(queue)} more not read)")
+    return out
+
+
 def main():
     url = sys.argv[1]
     opts = {"quiet": True, "no_warnings": True}
@@ -76,6 +114,10 @@ def main():
     attrs = re.findall(r"\s(data-[\w-]*(?:video|play|src|stream|media|file|id)[\w-]*)=[\"']([^\"']{0,150})", page, re.I)
     for k, v in uniq(attrs, 15):
         out.append(f"attribute: {k}={short(v, 120)}")
+    # A small page with app scripts is a JavaScript app: the video comes from an API that the
+    # scripts call. Read the site's own scripts (and the chunks they load) for those paths.
+    if len(body) < 20000 and scripts:
+        out += scan_scripts(ydl_opts=opts, page_url=final, scripts=scripts, host=host)
     frag = urlparse(url).fragment
     ids = uniq(re.findall(r"\d{3,}", urlparse(url).path + " " + frag), 3)
     for i in ids:
