@@ -13,7 +13,11 @@ import json
 import re
 import sys
 
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import yt_dlp
+from urltools import clean_url
 from yt_dlp.postprocessor.common import PostProcessor
 
 LIST_FIELDS = {"tags", "categories", "artists", "genres", "composers", "album_artists", "cast"}
@@ -60,13 +64,45 @@ EMBED_TAGS = {}   # profile's "file tag = template" lines, set from the spec
 SOURCE_URL = ""
 
 
+def direct_fix(info):
+    """A plain file link (generic extractor) gets its id and title from the file name, which may
+    carry the query string. Clean those up and use a download name (fn=, filename=) if the link
+    has one, since that is usually the real title."""
+    if info.get("extractor") != "generic" or not info.get("direct"):
+        return {}
+    from urllib.parse import parse_qs, unquote, urlparse
+    url = info.get("url") or info.get("webpage_url") or ""
+    u = urlparse(url)
+    stem = unquote(u.path.rstrip("/").rsplit("/", 1)[-1]).rsplit(".", 1)[0]
+    fix = {}
+    if "?" in str(info.get("id", "")) or "&" in str(info.get("id", "")):
+        fix["id"] = fix["display_id"] = stem or str(info["id"]).split("?")[0]
+    q = parse_qs(u.query)
+    name = next((q[k][0] for k in ("fn", "filename", "file", "name", "title") if q.get(k)), "")
+    name = re.sub(r"\.(mp4|m4v|mov|mkv|webm|jpg|jpeg|png)$", "", unquote(name), flags=re.I).replace("_", " ").strip()
+    if name:
+        fix["alt_title"] = info.get("title")
+        fix["title"] = fix["fulltitle"] = name
+    return fix
+
+
 def effective(info, templates, overrides):
+    fix = direct_fix(info)
+    info = {**info, **fix}
     vals = {k: render(t, info) for k, t in (templates or {}).items()}
     vals.update(overrides or {})
     out = coerce(vals)
     ctx = {**info, **{k: v for k, v in out.items() if not k.startswith("meta_")},
-           "source_url": SOURCE_URL or info.get("webpage_url") or ""}
+           "source_url": clean_url(SOURCE_URL or info.get("webpage_url") or "")}
+    page = info.get("webpage_url") or ""
+    if page and clean_url(page) != page:   # keep access keys out of the purl / comment tags
+        out["meta_purl"] = clean_url(page)
+        out.setdefault("meta_comment", clean_url(page))
     # Tags also go into the "keywords" tag (yt-dlp itself only puts them into genre).
+    for k, v in fix.items():
+        out.setdefault(k, v)
+        if k == "title":
+            out.setdefault("meta_title", v)
     tags = ctx.get("tags")
     if tags and "meta_keywords" not in info:
         out["meta_keywords"] = ", ".join(map(str, tags)) if isinstance(tags, (list, tuple)) else str(tags)
@@ -90,7 +126,8 @@ def clean(d):
     return out
 
 
-HEAVY = ("formats", "automatic_captions", "heatmap", "requested_formats", "requested_downloads")
+HEAVY = ("formats", "automatic_captions", "heatmap", "requested_formats", "requested_downloads",
+         "cookies", "http_headers")
 
 
 def rawify(d):

@@ -22,7 +22,10 @@ from gallery_dl import formatter
 
 EMBED_TAGS = json.loads(os.environ.get("WEBUI_EMBED_TAGS") or "{}")
 MEDIA_EXT = tuple(json.loads(os.environ.get("WEBUI_MEDIA_EXT") or "[]"))
-SOURCE_URL = os.environ.get("WEBUI_SOURCE_URL", "")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from urltools import clean_url  # noqa: E402
+
+SOURCE_URL = clean_url(os.environ.get("WEBUI_SOURCE_URL", ""))
 WRITE_NFO = os.environ.get("WEBUI_WRITE_NFO", "")   # "", "performer", "studio" or "none"
 _SIMPLE = (str, int, float, bool)
 _fmts = {}

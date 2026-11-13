@@ -1332,6 +1332,45 @@ async def preview_ytdlp(ctx):
     return res
 
 
+_GDL_CAT: dict[str, str] = {}
+
+
+async def gdl_category(url: str) -> str:
+    """gallery-dl's extractor category for a link ("" when it has none). "ytdl" means gallery-dl
+    would only hand the link to yt-dlp's generic code, so yt-dlp itself does that job better."""
+    if url in _GDL_CAT:
+        return _GDL_CAT[url]
+    if not engine_ready("gallery-dl"):
+        return ""
+    code = "import sys\nfrom gallery_dl import extractor\ne = extractor.find(sys.argv[1])\nprint(e.category if e else '')"
+    try:
+        rc, out, err = await run([venv_python("gallery-dl"), "-c", code, url], 30)
+        cat = out.strip().splitlines()[-1] if rc == 0 and out.strip() else ""
+    except Exception:
+        cat = ""
+    _GDL_CAT[url] = cat
+    return cat
+
+
+async def auto_order(url: str) -> list[str]:
+    cat = await gdl_category(url)
+    return ["yt-dlp", "gallery-dl"] if cat in ("", "ytdl", "generic", "directlink") and engine_ready("yt-dlp") else ["gallery-dl", "yt-dlp"]
+
+
+SCRUB_KEYS = {"cookies", "http_headers", "_ytdl_info_dict", "_ytdl_extra", "_http_headers"}
+
+
+def scrub(obj, depth=0):
+    """Raw metadata without session cookies, request headers or repeated copies of itself."""
+    if depth > 12:
+        return None
+    if isinstance(obj, dict):
+        return {k: scrub(v, depth + 1) for k, v in obj.items() if k not in SCRUB_KEYS}
+    if isinstance(obj, list):
+        return [scrub(v, depth + 1) for v in obj]
+    return obj
+
+
 async def probe_page(url: str) -> list[str]:
     jar = combined_cookies("probe-" + uuid.uuid4().hex[:8])
     try:
@@ -1347,11 +1386,15 @@ async def probe_page(url: str) -> list[str]:
 @app.post("/api/preview")
 async def preview(req: DLReq):
     ctx = resolve(req)
-    order = ["gallery-dl", "yt-dlp"] if ctx["engine"] == "auto" else [ctx["engine"]]
+    order = await auto_order(ctx["url"]) if ctx["engine"] == "auto" else [ctx["engine"]]
     errors, logs = {}, {}
     for eng in order:
         try:
             res = await (preview_gdl(ctx) if eng == "gallery-dl" else preview_ytdlp(ctx))
+            for obj in [res, *res.get("items", [])]:
+                for k in ("raw", "raw_common", "meta", "common"):
+                    if isinstance(obj.get(k), dict):
+                        obj[k] = scrub(obj[k])
             res["profile"] = ctx["profile"]
             res["auto_profile"] = ctx["auto_profile"]
             res["profile_fields"] = list(ctx["templates"])
@@ -1499,7 +1542,10 @@ async def run_job(job: dict):
             for w in ctx["warnings"]:
                 job_log(job, w)
                 applog(w, "warning")
-            if ctx["engine"] == "auto":
+            if ctx["engine"] == "auto" and (await auto_order(ctx["url"]))[0] == "yt-dlp":
+                applog("No gallery-dl extractor for this link, using yt-dlp")
+                rc = await execute(job, ctx, "yt-dlp")
+            elif ctx["engine"] == "auto":
                 rc = await execute(job, ctx, "gallery-dl")
                 if rc == 64 and job["status"] != "cancelled":
                     job_log(job, "gallery-dl does not support this link, trying yt-dlp")
