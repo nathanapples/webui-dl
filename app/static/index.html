@@ -569,10 +569,19 @@ function copyFallback(text){
 }
 $("#applog").addEventListener("click", async () => {
   if (logSelected() && window.getSelection().toString().length < $("#applog").textContent.length - 5) return; // user picked a part
-  const text = logLines.map(l => l.text).join("\n");
+  // Newest lines only, up to 19,000 characters: pasted text is often cut off at 20,000
+  // from the top, which would drop the newest (most useful) lines.
+  const picked = []; let size = 0;
+  for (let i = logLines.length - 1; i >= 0; i--) {
+    const t = logLines[i].text; if (picked.length && size + t.length + 1 > 19000) break;
+    picked.unshift(t); size += t.length + 1;
+  }
+  const text = picked.join("\n");
   if (!text) return;
   const ok = await copyText(text);
-  notify(ok ? "ok" : "err", ok ? "Log copied" : "Could not copy", ok ? `${logLines.length} lines, ${text.length.toLocaleString()} characters` : "Long-press the log and use Copy instead", 2500);
+  const all = picked.length === logLines.length;
+  notify(ok ? "ok" : "err", ok ? "Log copied" : "Could not copy",
+    ok ? (all ? `${picked.length} lines` : `Newest ${picked.length} of ${logLines.length} lines`) : "Long-press the log and use Copy instead", 2500);
 });
 setInterval(() => loadAppLog(), 3000);
 document.addEventListener("selectionchange", () => { if (logDirty && openPanel === "log" && !logSelected()) setTimeout(() => { if (!logSelected()) renderLog(); }, 400); });
