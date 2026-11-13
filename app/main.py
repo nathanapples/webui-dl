@@ -125,6 +125,11 @@ def level_of(line: str) -> str:
     return "info"
 
 
+_FFMPEG_NOISE = re.compile(
+    r"^(\s|built with |configuration: |lib(av|sw|post)\w*\s|Input #|Output #|Stream mapping:|Press \[q\]|"
+    r"frame=|size=|video:|\[(\w+|out#\d+/\w+|in#\d+/\w+) @ 0x[0-9a-f]+\])")
+
+
 def _log_add(text: str, level: str):
     global _log_seq
     _log_seq += 1
@@ -1443,6 +1448,16 @@ async def execute(job: dict, ctx: dict, engine: str) -> int:
                     job["files"] = job.get("files", 0) + 1
                 job["status_line"] = rel(line) or line
                 job_log(job, line)
+                # ffmpeg banners from exec post-processors in gallery-dl.conf: keep them out of
+                # the activity log (the job's own log still has them), show one line instead.
+                if line.startswith("ffmpeg version "):
+                    job["_ffmpeg"] = True
+                    applog("ffmpeg ran (post-processor from gallery-dl.conf)", "debug")
+                    continue
+                if job.get("_ffmpeg"):
+                    if _FFMPEG_NOISE.match(line):
+                        continue
+                    job["_ffmpeg"] = False
                 if engine == "gallery-dl" and line.startswith("# " + str(DOWNLOADS)):
                     applog("Already downloaded, skipped: " + line[2:])
                 else:

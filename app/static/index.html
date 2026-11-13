@@ -555,6 +555,25 @@ function renderLog(){
   pre.innerHTML = logLines.length ? logLines.map(l => `<span class="l-${l.level}">${esc(l.text)}</span>`).join("\n") : '<span class="l-debug">(empty)</span>';
   if (atBottom || pre._first !== false) { pre.scrollTop = pre.scrollHeight; pre._first = false; }
 }
+/* tap the log: copy all of it (a phone's own Copy can cut long text short) */
+function copyText(text){
+  try { if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).then(() => true, () => copyFallback(text)); } catch {}
+  return Promise.resolve(copyFallback(text));
+}
+function copyFallback(text){
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;top:0;left:0;opacity:0;font-size:16px";
+  document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+  let ok = false; try { ok = document.execCommand("copy"); } catch {}
+  ta.remove(); return ok;
+}
+$("#applog").addEventListener("click", async () => {
+  if (logSelected() && window.getSelection().toString().length < $("#applog").textContent.length - 5) return; // user picked a part
+  const text = logLines.map(l => l.text).join("\n");
+  if (!text) return;
+  const ok = await copyText(text);
+  notify(ok ? "ok" : "err", ok ? "Log copied" : "Could not copy", ok ? `${logLines.length} lines, ${text.length.toLocaleString()} characters` : "Long-press the log and use Copy instead", 2500);
+});
 setInterval(() => loadAppLog(), 3000);
 document.addEventListener("selectionchange", () => { if (logDirty && openPanel === "log" && !logSelected()) setTimeout(() => { if (!logSelected()) renderLog(); }, 400); });
 
