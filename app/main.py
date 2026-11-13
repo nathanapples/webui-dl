@@ -27,7 +27,7 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, Form, HTTPException, Request
 
 from . import nfo as nfo_mod
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel
 
 CONFIG = Path(os.environ.get("CONFIG_DIR", "/config"))
@@ -375,6 +375,21 @@ async def startup():
 async def get_log(after: int = 0):
     lines = [{"n": n, "level": lv, "text": t} for n, lv, t in _log if n > after]
     return {"seq": _log_seq, "lines": lines}
+
+
+@app.get("/log.txt")
+async def log_text(find: str = "", lines: int = 500, context: int = 0):
+    """The activity log as plain text, easy to open on a phone and share.
+    /log.txt?find=ersties shows only lines containing that word (plus `context` lines around each)."""
+    all_lines = [t for _, _, t in _log]
+    if find:
+        needle = find.lower()
+        hits = [i for i, t in enumerate(all_lines) if needle in t.lower()]
+        keep = sorted({j for i in hits for j in range(max(0, i - context), min(len(all_lines), i + context + 1))})
+        all_lines = [all_lines[i] for i in keep]
+    lines = max(1, min(int(lines or 500), 3000))
+    body = "\n".join(all_lines[-lines:]) or (f"No log lines contain '{find}'." if find else "(empty)")
+    return PlainTextResponse(body + "\n")
 
 
 @app.delete("/api/log")
