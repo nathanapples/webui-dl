@@ -43,6 +43,7 @@ except OSError:
     APP_VERSION = "dev"
 GIT_SHA = os.environ.get("GIT_SHA", "")[:7]
 RUNNER_YTDLP = APP_DIR / "runner_ytdlp.py"
+PROBE = APP_DIR / "probe.py"
 RUNNER_GDL = APP_DIR / "runner_gdl.py"
 TAGGER = APP_DIR / "gdl_tagger.py"
 VENVS = CONFIG / "venvs"
@@ -1331,6 +1332,18 @@ async def preview_ytdlp(ctx):
     return res
 
 
+async def probe_page(url: str) -> list[str]:
+    jar = combined_cookies("probe-" + uuid.uuid4().hex[:8])
+    try:
+        rc, out, err = await run([venv_python("yt-dlp"), str(PROBE), url, str(jar or "")], 60)
+        line = next((l for l in reversed(out.splitlines()) if l.startswith("{")), None)
+        return json.loads(line)["lines"] if line else [(err.strip().splitlines() or [f"exit {rc}"])[-1]]
+    except Exception as e:
+        return [f"page check failed: {e}"]
+    finally:
+        cleanup([jar] if jar else [])
+
+
 @app.post("/api/preview")
 async def preview(req: DLReq):
     ctx = resolve(req)
@@ -1362,6 +1375,12 @@ async def preview(req: DLReq):
         applog(f"{e}: {msg}", "error")
     for l in log[-200:]:
         applog(l, level_of(l) if level_of(l) != "info" else "debug")
+    if ctx.get("debug") and engine_ready("yt-dlp"):
+        probe = await probe_page(ctx["url"])
+        log += ["--- page check ---", *probe]
+        applog(f"Page check for {ctx['url']} (what the page offers, for adding support):")
+        for l in probe:
+            applog("[page] " + l)
     return JSONResponse({"error": "No metadata found", "details": errors, "log": log, "profile": ctx["profile"]},
                         status_code=422)
 
