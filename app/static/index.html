@@ -91,7 +91,7 @@ pre{font:12px/1.45 var(--mono);background:rgba(0,0,0,.28);border:1px solid var(-
 @keyframes tin{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
 @keyframes tout{to{opacity:0;transform:translateX(24px)}}
 @keyframes tbar{from{width:100%}to{width:0}}
-#applog{max-height:460px;min-height:120px}
+#applog{max-height:460px;min-height:120px;-webkit-user-select:all;user-select:all;cursor:text}
 #applog .l-error{color:var(--err)}#applog .l-warning{color:var(--accent)}#applog .l-debug{color:var(--muted)}
 
 /* options row */
@@ -243,7 +243,6 @@ ul.plain{margin:6px 0 0;padding-left:18px;font-size:14px}
         <div class="row between"><b>Log</b>
           <div class="row">
             <label class="muted" style="font-size:14px;cursor:pointer" title="Extra detail from gallery-dl / yt-dlp for the next preview and downloads"><input type="checkbox" id="debug"> Verbose</label>
-            <a href="log.txt" target="_blank" rel="noopener" class="muted" style="font-size:14px">Open as text</a>
           </div>
         </div>
         <pre id="applog"></pre>
@@ -536,18 +535,28 @@ async function loadAppLog(reset){
   if (reset) { logSeq = 0; logLines = []; }
   let r; try { r = await api(`api/log?after=${logSeq}`); } catch { return; }
   if (r.seq < logSeq) { logSeq = 0; logLines = []; return loadAppLog(); }  // log was cleared
+  let changed = !!reset;
   if (r.lines.length) {
-    logLines = logLines.concat(r.lines).slice(-3000); logSeq = r.seq;
+    logLines = logLines.concat(r.lines).slice(-3000); logSeq = r.seq; changed = true;
     if (openPanel !== "log" && r.lines.some(l => l.level === "error") && !reset) { logErrors = true; renderHint(); }
   }
-  if (openPanel === "log") renderLog();
+  if (openPanel === "log" && (changed || logDirty)) renderLog();
+  else if (changed) logDirty = true;
+}
+let logDirty = true;
+function logSelected(){
+  const sel = window.getSelection && window.getSelection();
+  return !!(sel && !sel.isCollapsed && sel.anchorNode && $("#applog").contains(sel.anchorNode));
 }
 function renderLog(){
+  if (logSelected()) { logDirty = true; return; }   // don't wipe out a selection; catch up afterwards
+  logDirty = false;
   const pre = $("#applog"), atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30;
   pre.innerHTML = logLines.length ? logLines.map(l => `<span class="l-${l.level}">${esc(l.text)}</span>`).join("\n") : '<span class="l-debug">(empty)</span>';
   if (atBottom || pre._first !== false) { pre.scrollTop = pre.scrollHeight; pre._first = false; }
 }
 setInterval(() => loadAppLog(), 3000);
+document.addEventListener("selectionchange", () => { if (logDirty && openPanel === "log" && !logSelected()) setTimeout(() => { if (!logSelected()) renderLog(); }, 400); });
 
 async function doPreview(keep=false){
   const url = $("#url").value.trim(); if (!url) return;
